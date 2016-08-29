@@ -311,7 +311,7 @@ public:
 	}
 
 	/* Substituting into the result of multiplication the result should be
-	     2abx + (a²-b²) = (ab + ab)·x + (a+b)·(a-b) = X·X·x + Y·Z,
+	     2abx + (a²-b²) = (ab + ab)·x + (a+b)·(a-b) = (X + X)·x + Y·Z,
 	   where
 	     X = ab, Y = (a + b) and Z = (a - b),
 	   thus we need only two multiplications.  */
