@@ -556,8 +556,8 @@ class MontgomeryCurve {
 	GF A, B, A24;
 public:
 	MontgomeryCurve(const GF& _A, const GF& _B) : A(_A), B(_B), A24(A) {
-		A += 2;
-		A /= 4;
+		A24 += 2;
+		A24 /= 4;
 	}
 
 	MontgomeryPoint zero();
