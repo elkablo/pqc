@@ -43,7 +43,7 @@ public:
 	WeierstrassSmallIsogeny small_isogeny (const WeierstrassPoint& generator, int l) const;
 
 	friend std::ostream& operator<<(std::ostream& os, const WeierstrassCurve& curve) {
-		os << "y² = x³ + (" << curve.a << ")·x + (" << curve.b << ")";
+		os << "y² = x³ + " << curve.a << "·x + " << curve.b;
 		return os;
 	}
 };
@@ -348,7 +348,11 @@ void test_weierstrass () {
 
 	std::cout << "\n";
 	std::cout << "E_A: " << *iso_a.image() << "\n";
+	std::cout << "phi_A(P_B) = " << iso_a(Pb) << "\n";
+	std::cout << "phi_A(Q_B) = " << iso_a(Qb) << "\n\n";
 	std::cout << "E_B: " << *iso_b.image() << "\n";
+	std::cout << "phi_B(P_A) = " << iso_b(Pa) << "\n";
+	std::cout << "phi_B(Q_A) = " << iso_b(Qa) << "\n";
 	std::cout << "\n";
 
 	WeierstrassIsogeny iso_ab(ma*iso_b(Pa) + na*iso_b(Qa), 2, 63);
