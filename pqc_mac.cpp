@@ -14,29 +14,77 @@ void mac::compute(void *digest, const std::string& input)
 class hmac_sha256 : public mac
 {
 public:
-	std::size_t size() const;
-	void compute(void *, const void *, std::size_t);
-	void key(const void *, std::size_t);
+	size_t size() const;
+	void compute(void *, const void *, size_t);
+	void key(const void *, size_t);
+
+	virtual operator enum pqc_mac() const;
 private:
 	uint64_t o_pad_[8], i_pad_[8];
 };
 
-mac * mac::create_mac(enum pqc_mac type)
+class hmac_sha512 : public mac
+{
+public:
+	size_t size() const;
+	void compute(void *, const void *, size_t);
+	void key(const void *, size_t);
+
+	virtual operator enum pqc_mac() const;
+private:
+	uint64_t o_pad_[16], i_pad_[16];
+};
+
+mac * mac::create(enum pqc_mac type)
 {
 	switch (type) {
 		case PQC_MAC_HMAC_SHA256:
 			return new hmac_sha256();
+		case PQC_MAC_HMAC_SHA512:
+			return new hmac_sha512();
 		default:
 			return nullptr;
 	}
 }
 
-std::size_t hmac_sha256::size() const
+static const struct {
+	enum pqc_mac mac;
+	const char *name;
+} mac_table[] = {
+	{ PQC_MAC_HMAC_SHA256, "sha256" },
+	{ PQC_MAC_HMAC_SHA512, "sha512" },
+	{ PQC_MAC_UNKNOWN, NULL }
+};
+
+enum pqc_mac mac::from_string(const char *str, size_t size)
+{
+	for (int i = 0; mac_table[i].name; ++i)
+		if (!strncasecmp (str, mac_table[i].name, size))
+			return mac_table[i].mac;
+
+	return PQC_MAC_UNKNOWN;
+}
+
+const char *mac::to_string(enum pqc_mac mac)
+{
+	for (int i = 0; mac_table[i].name; ++i)
+		if (mac == mac_table[i].mac)
+			return mac_table[i].name;
+
+	return nullptr;
+}
+
+hmac_sha256::operator enum pqc_mac() const
+{
+	return PQC_MAC_HMAC_SHA256;
+}
+
+size_t hmac_sha256::size() const
 {
 	return 32;
 }
 
-void hmac_sha256::key(const void *keyv, std::size_t len)
+void hmac_sha256::key(const void *keyv, size_t len)
 {
 	uint64_t key[8];
 	if (len > 64) {
@@ -61,7 +109,7 @@ void hmac_sha256::key(const void *keyv, std::size_t len)
 	}
 }
 
-void hmac_sha256::compute(void *digest, const void *input, std::size_t len)
+void hmac_sha256::compute(void *digest, const void *input, size_t len)
 {
 	SHA256_CTX ctx;
 
@@ -74,6 +122,56 @@ void hmac_sha256::compute(void *digest, const void *input, std::size_t len)
 	SHA256_Update(&ctx, reinterpret_cast<const void *>(o_pad_), 64);
 	SHA256_Update(&ctx, digest, 32);
 	SHA256_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
+}
+
+hmac_sha512::operator enum pqc_mac() const
+{
+	return PQC_MAC_HMAC_SHA512;
+}
+
+size_t hmac_sha512::size() const
+{
+	return 64;
+}
+
+void hmac_sha512::key(const void *keyv, size_t len)
+{
+	uint64_t key[16];
+	if (len > 128) {
+		SHA512_CTX ctx;
+
+		SHA512_Init(&ctx);
+		SHA512_Update(&ctx, keyv, len);
+		SHA512_Final(reinterpret_cast<unsigned char *>(key), &ctx);
+
+		len = 64;
+	} else {
+		::memcpy(key, keyv, len);
+	}
+
+	if (len < 128) {
+		::memset(&reinterpret_cast<uint8_t *>(key)[len], 0, 128-len);
+	}
+
+	for (int i = 0; i < 16; ++i) {
+		o_pad_[i] = key[i] ^ 0x5c5c5c5c5c5c5c5cULL;
+		i_pad_[i] = key[i] ^ 0x3636363636363636ULL;
+	}
+}
+
+void hmac_sha512::compute(void *digest, const void *input, size_t len)
+{
+	SHA512_CTX ctx;
+
+	SHA512_Init(&ctx);
+	SHA512_Update(&ctx, reinterpret_cast<const void *>(i_pad_), 128);
+	SHA512_Update(&ctx, input, len);
+	SHA512_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
+
+	SHA512_Init(&ctx);
+	SHA512_Update(&ctx, reinterpret_cast<const void *>(o_pad_), 128);
+	SHA512_Update(&ctx, digest, 64);
+	SHA512_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
 }
 
 }
