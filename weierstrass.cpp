@@ -58,6 +58,8 @@ public:
 	friend class WeierstrassCurve;
 	friend class WeierstrassSmallIsogeny;
 
+	WeierstrassPoint() {}
+
 	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x, const GF& y) :
 		m_curve(curve), x(x), y(y), identity(false) {}
 
@@ -125,10 +127,12 @@ public:
 
 	WeierstrassPoint& operator+=(const WeierstrassPoint& other) {
 		*this = *this + other;
+		return *this;
 	}
 
 	WeierstrassPoint& operator-=(const WeierstrassPoint& other) {
 		*this += -other;
+		return *this;
 	}
 
 	WeierstrassPoint operator-(const WeierstrassPoint& other) const {
@@ -327,7 +331,7 @@ void test_weierstrass () {
 
 	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
 
-	Z base(1), mul(2);
+/*	Z base(1), mul(2);
 	for (int i = 0; i < 64; ++i) {
 		if ((base * gen_a).is_identity()) {
 			std::cout << "gen_a is of order " << mul << "^" << i << "\n";
@@ -341,44 +345,47 @@ void test_weierstrass () {
 			std::cout << "gen_b is of order " << mul << "^" << i << "\n";
 		}
 		base *= mul;
-	}
+	}*/
 
 	WeierstrassIsogeny iso_a(gen_a, 2, 63);
 	WeierstrassIsogeny iso_b(gen_b, 3, 41);
 
-	std::cout << "\n";
+/*	std::cout << "\n";
 	std::cout << "E_A: " << *iso_a.image() << "\n";
 	std::cout << "phi_A(P_B) = " << iso_a(Pb) << "\n";
 	std::cout << "phi_A(Q_B) = " << iso_a(Qb) << "\n\n";
 	std::cout << "E_B: " << *iso_b.image() << "\n";
 	std::cout << "phi_B(P_A) = " << iso_b(Pa) << "\n";
 	std::cout << "phi_B(Q_A) = " << iso_b(Qa) << "\n";
-	std::cout << "\n";
+	std::cout << "\n";*/
 
 	WeierstrassIsogeny iso_ab(ma*iso_b(Pa) + na*iso_b(Qa), 2, 63);
 	WeierstrassIsogeny iso_ba(mb*iso_a(Pb) + nb*iso_a(Qb), 3, 41);
 
-	std::cout << "\n";
+
+/*	std::cout << "\n";
 	std::cout << "E_AB: " << *iso_ab.image() << "\n";
 	std::cout << "E_BA: " << *iso_ba.image() << "\n";
 	std::cout << "\n";
 
-	std::cout << "\n";
+	std::cout << "\n";*/
 	std::cout << "j(E_AB) = " << iso_ab.image()->j_invariant() << "\n";
 	std::cout << "j(E_BA) = " << iso_ba.image()->j_invariant() << "\n";
 	std::cout << "\n";
 
-	int i;
+/*	int i;
 	for (i = 0; i < iso_ab.isogenies().size(); ++i) {
 		std::cout << iso_ab.isogenies()[i].image()->j_invariant();
 		if (i < iso_ba.isogenies().size())
 			std::cout << "   " << iso_ba.isogenies()[i].image()->j_invariant();
 		std::cout << "\n";
-	}
+	}*/
 //	iso_ab.print_j_invariants();
 }
 
+/*
 int main (int argc, char ** argv) {
 	test_weierstrass();
 	return 0;
 }
+*/

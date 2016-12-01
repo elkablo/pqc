@@ -1,3 +1,6 @@
+#ifndef PQC_GH_HPP
+#define PQC_GH_HPP
+
 #include <functional>
 #include <algorithm>
 #include <iostream>
@@ -100,6 +103,9 @@ public:
 	bool testbit (std::size_t index) const {
 		return ::mpz_tstbit(*this, index);
 	}
+
+	std::string serialize(size_t) const;
+	void unserialize(const std::string&);
 };
 
 class GF {
@@ -224,6 +230,7 @@ public:
 	inline GF& operator++() {
 		++a;
 		a %= *p;
+		return *this;
 	}
 
 	inline GF operator++(int) {
@@ -235,6 +242,7 @@ public:
 	inline GF& operator--() {
 		--a;
 		a %= *p;
+		return *this;
 	}
 
 	inline GF operator--(int) {
@@ -432,7 +440,7 @@ public:
 	GF pow(const Z& exp) const {
 		GF q(*this);
 		GF res = exp.testbit(0) ? *this : GF(*p, 1, 0);
-		for (std::ptrdiff_t i = 1; i < exp.bit_length(); ++i) {
+		for (std::size_t i = 1; i < exp.bit_length(); ++i) {
 			q.square_inplace();
 			if (exp.testbit(i))
 				res *= q;
@@ -444,6 +452,9 @@ public:
 		Z exp = (*p * *p - 1) >> 1;
 		return this->pow(exp) == 1;
 	}
+
+	std::string serialize() const;
+	bool unserialize(const std::string&);
 
 	inline operator bool() const {
 		return sgn(a) != 0 || sgn(b) != 0;
@@ -628,3 +639,5 @@ public:
 		return *this;
 	}
 };
+
+#endif /* PQC_GF_HPP */

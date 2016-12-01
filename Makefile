@@ -1,9 +1,9 @@
-CXXFLAGS = -fPIC -ggdb -fno-exceptions -fno-stack-protector -march=native -std=c++14
+CXXFLAGS = -fPIC -O2 -fno-exceptions -fno-stack-protector -march=native -std=c++14
 LDFLAGS = -lgmpxx -lgmp
 
 OBJS = weierstrass.o gf.o
 
-all: weier pqc
+all: pqc
 
 gf.o: gf.hpp
 weierstrass.o: gf.hpp
@@ -17,7 +17,7 @@ weier: $(OBJS)
 clean:
 	rm -rf $(OBJS) weier
 
-PQC_OBJS = pqc.cpp pqc_parser.cpp pqc_kex.cpp pqc_mac.cpp pqc_cipher.cpp pqc_random.cpp pqc_base64.cpp
+PQC_OBJS = pqc.cpp pqc_parser.cpp pqc_kex.cpp pqc_mac.cpp pqc_cipher.cpp pqc_random.cpp pqc_base64.cpp gf.cpp
 
 pqc: $(PQC_OBJS)
-	g++ -Wall -ggdb -std=c++11 -o pqc $(PQC_OBJS) -lcrypto -lnettle
+	g++ -fPIC -Wall -ggdb -std=c++14 -o pqc $(PQC_OBJS) -lcrypto -lnettle -lgmpxx -lgmp

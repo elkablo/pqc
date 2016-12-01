@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "gf.hpp"
+
 enum pqc_cipher {
 	PQC_CIPHER_UNKNOWN = 0,
 	PQC_CIPHER_CHACHA20,
@@ -90,6 +92,18 @@ public:
 class kex
 {
 public:
+	enum class mode {
+		SERVER,
+		CLIENT
+	};
+
+	kex(mode);
+	virtual ~kex() {}
+
+	virtual std::string init(mode) = 0;
+	virtual std::string fini(const std::string&) = 0;
+
+	static kex * create(enum pqc_kex);
 	static enum pqc_kex from_string (const char *, size_t);
 	static const char *to_string(enum pqc_kex);
 
@@ -98,6 +112,8 @@ public:
 	{
 		return (1 << PQC_KEX_SIDHex);
 	}
+protected:
+	mode mode_;
 };
 
 class mac
@@ -239,6 +255,8 @@ private:
 
 void random_bytes(char *, size_t);
 std::string random_string(size_t);
+Z random_z(size_t);
+Z random_z_below(const Z&);
 std::string base64_encode(const std::string&);
 std::string base64_decode(const std::string&);
 
