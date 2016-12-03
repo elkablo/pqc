@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <memory>
 
 #include "pqc.hpp"
 
@@ -13,13 +14,10 @@ session::session() :
 	error_(error::NONE),
 	state_(state::INIT),
 	mode_(mode::NONE),
+	remote_closed_(false),
 	rekey_after_(1024*1024*1024),
 	since_last_rekey_(0),
-	kex_(nullptr),
-	cipher_(nullptr),
-	peer_cipher_(nullptr),
-	mac_(nullptr),
-	peer_mac_(nullptr),
+	encrypted_need_size_(0),
 	enabled_ciphers_(cipher::enabled_default()),
 	enabled_auths_(0),
 	enabled_macs_(mac::enabled_default()),
@@ -29,16 +27,6 @@ session::session() :
 
 session::~session()
 {
-	if (kex_)
-		delete kex_;
-	if (cipher_)
-		delete cipher_;
-	if (peer_cipher_)
-		delete peer_cipher_;
-	if (mac_)
-		delete mac_;
-	if (peer_mac_)
-		delete peer_mac_;
 }
 
 #define ENABLER(name,type,var,fst,last)			\
@@ -62,6 +50,10 @@ ENABLER(kex, enum pqc_kex, enabled_kexes_, PQC_KEX_FIRST, PQC_KEX_LAST)
 ENABLER(auth, enum pqc_auth, enabled_auths_, PQC_AUTH_FIRST, PQC_AUTH_LAST)
 ENABLER(mac, enum pqc_mac, enabled_macs_, PQC_MAC_FIRST, PQC_MAC_LAST)
 #undef ENABLER
+
+const std::string& session::get_server_name() const {
+	return server_name_;
+}
 
 void session::set_server_auth(const char *auth)
 {
@@ -121,16 +113,21 @@ bool session::is_closed() const
 	return state_ == state::CLOSED;
 }
 
+void session::set_error(error err)
+{
+	error_ = err;
+	state_ = state::ERROR;
+}
+
 void session::write_incoming(const char *buf, size_t size)
 {
 	encrypted_incoming_.append(buf, size);
 
+	while (encrypted_incoming_.size()) {
 	if (state_ == state::INIT) {
 		bool has_nn = encrypted_incoming_.find("\n\n") != std::string::npos;
-		if (!has_nn && encrypted_incoming_.size() > 4096) {
-			error_ = error::HANDSHAKE;
-			return;
-		}
+		if (!has_nn && encrypted_incoming_.size() > 4096)
+			return set_error(error::HANDSHAKE);
 
 		if (!has_nn)
 			return;
@@ -139,11 +136,8 @@ void session::write_incoming(const char *buf, size_t size)
 		handshake handshake;
 
 		ptr = handshake.parse_init(encrypted_incoming_.c_str());
-		if (!ptr) {
-			error_ = error::HANDSHAKE;
-			return;
-		}
-
+		if (!ptr)
+			return set_error(error::HANDSHAKE);
 		encrypted_incoming_.erase(0, ptr - encrypted_incoming_.c_str());
 
 		ciphers_bitset available_ciphers = handshake.supported_ciphers & enabled_ciphers_;
@@ -151,18 +145,13 @@ void session::write_incoming(const char *buf, size_t size)
 
 		if (handshake.version != 1
 			|| handshake.kex == PQC_KEX_UNKNOWN
+			|| (mode_ == mode::CLIENT && use_kex_ != handshake.kex)
 			|| !is_kex_enabled(handshake.kex)
 			|| !available_ciphers
 			|| !available_macs
 			|| !handshake.encrypted_secret
-		) {
-			error_ = error::HANDSHAKE;
-			return;
-		}
-
-		use_kex_ = handshake.kex;
-
-		// kex_ = ...
+		)
+			return set_error(error::HANDSHAKE);
 
 		for_each_pqc_cipher(c) {
 			if ((1 << c) & available_ciphers) {
@@ -178,19 +167,36 @@ void session::write_incoming(const char *buf, size_t size)
 			}
 		}
 
+		std::string encrypted_secret;
+
 		if (mode_ == mode::SERVER) {
-			send_handshake_init();
-		} else {
-			send_handshake_fini();
+			use_kex_ = handshake.kex;
+			kex_ = kex::create(use_kex_, kex::mode::SERVER);
+			encrypted_secret = kex_->init();
 		}
+
+		session_key_ = kex_->fini(handshake.encrypted_secret);
+		if (!session_key_.size())
+			return set_error(error::HANDSHAKE);
+
+		std::string nonce(random_string(std::max((size_t) 32, cipher_->nonce_size())));
+		mac_->key(nonce);
+
+		ephemeral_key_ = mac_->compute(session_key_);
+
+		cipher_->nonce(nonce);
+		cipher_->key(ephemeral_key_);
+
+		if (mode_ == mode::SERVER) {
+			send_handshake_init(encrypted_secret);
+		}
+		send_handshake_fini(nonce);
 
 		state_ = state::HANDSHAKING;
 	} else if (state_ == state::HANDSHAKING) {
 		bool has_nn = encrypted_incoming_.find("\n\n") != std::string::npos;
-		if (!has_nn && encrypted_incoming_.size() > 4096) {
-			error_ = error::HANDSHAKE;
-			return;
-		}
+		if (!has_nn && encrypted_incoming_.size() > 4096)
+			return set_error(error::HANDSHAKE);
 
 		if (!has_nn)
 			return;
@@ -199,10 +205,8 @@ void session::write_incoming(const char *buf, size_t size)
 		handshake handshake;
 
 		ptr = handshake.parse_fini(encrypted_incoming_.c_str());
-		if (!ptr) {
-			error_ = error::HANDSHAKE;
-			return;
-		}
+		if (!ptr)
+			return set_error(error::HANDSHAKE);
 
 		encrypted_incoming_.erase(0, ptr - encrypted_incoming_.c_str());
 
@@ -211,41 +215,186 @@ void session::write_incoming(const char *buf, size_t size)
 			|| handshake.mac == PQC_MAC_UNKNOWN
 			|| !is_mac_enabled(handshake.mac)
 			|| !handshake.nonce
-		) {
-			error_ = error::HANDSHAKE;
-			return;
-		}
+		)
+			return set_error(error::HANDSHAKE);
 
-		peer_cipher_ = cipher::create(handshake.cipher);
 		peer_mac_ = mac::create(handshake.mac);
-		peer_nonce_ = handshake.nonce;
+		peer_cipher_ = cipher::create(handshake.cipher);
 
-		if (mode_ == mode::SERVER) {
-			send_handshake_fini();
+		std::string peer_nonce = base64_decode(handshake.nonce);
+
+		if (peer_nonce.size() < std::max((size_t) 32, peer_cipher_->nonce_size()))
+			return set_error(error::HANDSHAKE);
+
+		peer_mac_->key(peer_nonce);
+
+		peer_ephemeral_key_ = peer_mac_->compute(session_key_);
+
+		peer_cipher_->nonce(peer_nonce);
+		peer_cipher_->key(peer_ephemeral_key_);
+
+		if (outgoing_.size() > 0)
 			state_ = state::HANDSHAKING_TILL_SENT;
-		} else {
+		else
 			state_ = state::NORMAL;
-		}
 	} else if (state_ == state::NORMAL) {
-		
+		return handle_incoming_data();
+	} else {
+		break;
+	}
+	}
+}
+
+void session::decrypt_raw(size_t size)
+{
+	size_t decrypted_size = decrypted_incoming_.size();
+
+	if (!size || encrypted_incoming_.size() < size)
+		size = encrypted_incoming_.size();
+
+	decrypted_incoming_.resize(decrypted_size + size);
+	peer_cipher_->decrypt(reinterpret_cast<void *>(&decrypted_incoming_[decrypted_size]), size, &encrypted_incoming_[0], size);
+	encrypted_incoming_.erase(0, size);
+}
+
+bool session::decrypt_needed()
+{
+	if (encrypted_incoming_.size() < encrypted_need_size_) {
+		encrypted_need_size_ -= encrypted_incoming_.size();
+		decrypt_raw();
+		if (encrypted_need_size_)
+			return false;
+	} else {
+		decrypt_raw(encrypted_incoming_.size());
+		encrypted_need_size_ = 0;
+	}
+	return true;
+}
+
+session::packettype session::decrypt_next_packet(std::string& data)
+{
+	const size_t min_size = 1 + peer_mac_->size();
+	size_t need = 0, size = 0;
+
+	if (decrypted_incoming_.size() < min_size)
+		encrypted_need_size_ = min_size;
+
+	if (!decrypt_needed())
+		return packettype::MORE;
+
+	const unsigned char *pkt = reinterpret_cast<const unsigned char *>(&decrypted_incoming_[0]);
+
+	if (pkt[0] == packettype::DATA) {
+		if (decrypted_incoming_.size() >= 5)
+			size = (pkt[1] << 24) | (pkt[2] << 16) | (pkt[3] << 8) | pkt[4];
+		need = 5 + size + peer_mac_->size();
+	} else if (pkt[0] == packettype::REKEY) {
+		if (decrypted_incoming_.size() >= 2)
+			size = pkt[1];
+		need = 2 + size + peer_mac_->size();
+	} else if (pkt[0] == packettype::CLOSE) {
+		need = min_size;
+	} else {
+		return packettype::ERROR;
+	}
+
+	encrypted_need_size_ = need - decrypted_incoming_.size();
+	if (!decrypt_needed())
+		return packettype::MORE;
+
+	if (decrypted_incoming_.size() >= need) {
+		std::string peer_hash = decrypted_incoming_.substr(need - peer_mac_->size(), peer_mac_->size());
+		std::string hash = peer_mac_->compute(pkt, need - peer_mac_->size());
+
+		if (peer_hash != hash)
+			return packettype::ERROR;
+
+		if (pkt[0] == packettype::DATA)
+			data = decrypted_incoming_.substr(5, size);
+		else if (pkt[0] == packettype::REKEY)
+			data = decrypted_incoming_.substr(2, size);
+
+		decrypted_incoming_.erase(0, encrypted_need_size_);
+		return static_cast<packettype>(pkt[0]);
+	} else {
+		encrypted_need_size_ = need - decrypted_incoming_.size();
+		return packettype::MORE;
+	}
+}
+
+void session::handle_incoming_data()
+{
+	while (encrypted_incoming_.size()) {
+		std::string data;
+
+		switch (decrypt_next_packet(data)) {
+		case packettype::CLOSE:
+			std::cout << "\tClose\n";
+			break;
+		case packettype::DATA:
+			std::cout << "\tData " << data << "\n";
+			incoming_ += data;
+			break;
+		case packettype::REKEY:
+			std::cout << "\tRekey\n";
+			break;
+		case packettype::MORE:
+			return;
+		default:
+			std::cout << "\tERROR msg type\n";
+			return set_error(error::OTHER);
+		}
 	}
 }
 
 void session::write(const char *buf, size_t size)
 {
-	if (state_ != state::NORMAL)
+	if (state_ != state::NORMAL || !size)
 		return;
 
+	const size_t hdr_size = 5;
+	const size_t wrp_size = hdr_size + mac_->size();
+	const size_t pkt_count = (size + 65535) / 65536;
 
+	outgoing_.reserve(outgoing_.size() + size + pkt_count*wrp_size);
+
+	size_t remaining = size;
+	for (const char *pkt = buf; pkt < buf + size; pkt += 65536, remaining -= 65536) {
+		const size_t beginning = outgoing_.size();
+		const uint32_t pkt_size = size > 65536 ? 65536 : size;
+		unsigned char hdr[hdr_size] = {
+			0x01, 0x00, 0x00,
+			(unsigned char) ((pkt_size >> 8) & 0xff),
+			(unsigned char) (pkt_size & 0xff)
+		};
+
+		outgoing_.append(reinterpret_cast<const char *>(hdr), 5);
+		outgoing_.append(pkt, pkt_size);
+		outgoing_.append(mac_->compute(&outgoing_[beginning], hdr_size + pkt_size));
+
+		cipher_->encrypt(
+			reinterpret_cast<void *>(&outgoing_[beginning]),
+			pkt_size + wrp_size,
+			reinterpret_cast<void *>(&outgoing_[beginning]),
+			pkt_size + wrp_size
+		);
+	}
 }
 
 ssize_t session::read(char *buf, size_t size)
 {
-	if (state_ < state::NORMAL)
+	if (state_ != state::NORMAL && state_ != state::CLOSING)
 		return -1;
 
+	if (!incoming_.size())
+		return -2;
 
-	return 0;
+	if (incoming_.size() < size)
+		size = incoming_.size();
+
+	::memcpy(buf, &incoming_[0], size);
+	incoming_.erase(0, size);
+	return size;
 }
 
 ssize_t session::read_outgoing(char *buf, size_t size)
@@ -260,22 +409,14 @@ ssize_t session::read_outgoing(char *buf, size_t size)
 	return res;
 }
 
-void session::start_server()
-{
-	mode_ = mode::SERVER;
-
-	std::stringstream stream;
-	stream << "Post-quantum hello v1.\n";
-}
-
-void session::send_handshake_init(const char *server_name)
+void session::send_handshake_init(const std::string& encrypted_secret)
 {
 	std::stringstream stream;
 
 	if (mode_ == mode::SERVER)
 		stream	<< "Post-quantum hello v1.\n";
 	else
-		stream	<< "Post-quantum hello v1, " << server_name << ".\n";
+		stream	<< "Post-quantum hello v1, " << server_name_ << ".\n";
 
 	stream	<< "Key-exchange: " << kex::to_string(use_kex_) << '\n'
 		<< "Supported-ciphers:";
@@ -296,22 +437,15 @@ void session::send_handshake_init(const char *server_name)
 		stream << "Server-auth: " << server_auth_ << '\n';
 
 	/* Client-auth !!! */
-
-	stream << "Encrypted-secret: brekeke\n";
+	stream << "Encrypted-secret: " << encrypted_secret << "\n";
 
 	stream << "\n";
 
 	outgoing_ = stream.str();
 }
 
-void session::send_handshake_fini()
+void session::send_handshake_fini(const std::string& nonce)
 {
-	std::string nonce(random_string(cipher_->nonce_size()));
-
-/*	cipher_->key
-	cipher_->nonce(nonce.c_str());
-	mac_->key(*/
-
 	std::stringstream stream;
 	stream	<< "KEX: OK\n"
 		<< "Cipher: " << cipher::to_string(*cipher_) << '\n'
@@ -321,11 +455,18 @@ void session::send_handshake_fini()
 	outgoing_.append(stream.str());
 }
 
+void session::start_server()
+{
+	mode_ = mode::SERVER;
+}
+
 void session::start_client(const char *server_name)
 {
 	mode_ = mode::CLIENT;
+	kex_ = kex::create(use_kex_, kex::mode::CLIENT);
 
-	send_handshake_init(server_name);
+	server_name_ = server_name;
+	send_handshake_init(kex_->init());
 }
 
 void session::close()
@@ -343,16 +484,24 @@ void session::close()
 #include <sys/wait.h>
 #include <poll.h>
 
-void waitfd(int fd)
+void waitfd(int fd, int ms)
 {
 	struct pollfd pfd;
 	pfd.fd = fd;
 	pfd.events = POLLIN;
-	poll(&pfd, 1, 1000);
+	poll(&pfd, 1, ms);
 }
 
-void move_between(pqc::session& sess, int fd)
+void sess_write(pqc::session& sess, int fd, const std::string& str = "")
 {
+	if (str.size()) {
+		sess.write(str.c_str(), str.size());
+		if (sess.is_error()) {
+			std::cout << "sess_write is error\n";
+			return;
+		}
+	}
+
 	char buf[4096];
 	size_t sz;
 	while ((sz = sess.bytes_outgoing_available()) > 0) {
@@ -366,8 +515,14 @@ void move_between(pqc::session& sess, int fd)
 			printf("--Written %zi bytes to socket %i.\n", sz, fd);
 		}
 	}
+}
 
-	waitfd(fd);
+std::string sess_read(pqc::session& sess, int fd, int ms = 1000, bool dontread = false)
+{
+	char buf[4096];
+
+	waitfd(fd, ms);
+	std::string result;
 
 	while (1) {
 		int value;
@@ -389,7 +544,22 @@ void move_between(pqc::session& sess, int fd)
 
 		printf("--Read %i bytes from socket %i.\n", value, fd);
 		sess.write_incoming(buf, value);
+		if (sess.is_error())
+			return "";
 	}
+
+	if (dontread)
+		return "";
+
+	result.resize(sess.bytes_available());
+	sess.read(&result[0], sess.bytes_available());
+	return result;
+}
+
+void move_between(pqc::session& sess, int fd)
+{
+	sess_write(sess, fd);
+	sess_read(sess, fd, 1000, true);
 }
 
 int do_server(int fd)
@@ -406,6 +576,8 @@ int do_server(int fd)
 			return 1;
 		}
 	}
+
+	std::cout << sess_read(sess, fd, 2000) << "\n";
 
 	std::cout << "server done\n";
 
@@ -426,6 +598,8 @@ int do_client(int fd)
 			return 1;
 		}
 	}
+
+	sess_write(sess, fd, "test1");
 
 	std::cout << "client done\n";
 

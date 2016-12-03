@@ -1,8 +1,8 @@
 #include <cstring>
+#include <openssl/sha.h>
+#include <openssl/chacha.h>
 
 #include "pqc.hpp"
-
-#include <openssl/chacha.h>
 
 namespace pqc
 {
@@ -10,14 +10,15 @@ namespace pqc
 std::string cipher::encrypt(const std::string& input)
 {
 	std::string output;
-	size_t to_reserve = input.size();
+	size_t size = input.size();
 
-	output.resize(to_reserve);
+	output.resize(size);
 
-	to_reserve = encrypt(&output[0], output.capacity(), input.c_str(), input.size());
-	if (to_reserve > output.capacity())
-		output.resize(to_reserve);
-	encrypt(&output[0], output.capacity(), input.c_str(), input.size());
+	size = encrypt(&output[0], output.size(), input.c_str(), input.size());
+	if (size > output.size()) {
+		output.resize(size);
+		encrypt(&output[0], output.size(), input.c_str(), input.size());
+	}
 
 	return output;
 }
@@ -25,16 +26,35 @@ std::string cipher::encrypt(const std::string& input)
 std::string cipher::decrypt(const std::string& input)
 {
 	std::string output;
-	size_t to_reserve = input.size();
+	size_t size = input.size();
 
-	output.resize(to_reserve);
+	output.resize(size);
 
-	to_reserve = decrypt(&output[0], output.capacity(), input.c_str(), input.size());
-	if (to_reserve > output.capacity())
-		output.resize(to_reserve);
-	decrypt(&output[0], output.capacity(), input.c_str(), input.size());
+	size = decrypt(&output[0], output.size(), input.c_str(), input.size());
+	if (size > output.size()) {
+		output.resize(size);
+		decrypt(&output[0], output.size(), input.c_str(), input.size());
+	}
 
 	return output;
+}
+
+void cipher::key(const std::string& val)
+{
+	if (val.size() < key_size()) {
+		// todo: warn
+	}
+
+	key(val.c_str(), val.size());
+}
+
+void cipher::nonce(const std::string& val)
+{
+	if (val.size() < nonce_size()) {
+		// todo: warn
+	}
+
+	nonce(val.c_str(), val.size());
 }
 
 class cipher_chacha20 : public cipher
@@ -45,8 +65,8 @@ public:
 	size_t key_size() const;
 	size_t nonce_size() const;
 
-	void key(const void *);
-	void nonce(const void *);
+	void key(const void *, size_t);
+	void nonce(const void *, size_t);
 
 	size_t encrypt(void *, size_t, const void *, size_t);
 	size_t decrypt(void *, size_t, const void *, size_t);
@@ -57,11 +77,11 @@ private:
 	uint64_t counter_;
 };
 
-cipher * cipher::create(enum pqc_cipher type)
+std::shared_ptr<cipher> cipher::create(enum pqc_cipher type)
 {
 	switch (type) {
 		case PQC_CIPHER_CHACHA20:
-			return new cipher_chacha20();
+			return std::make_shared<cipher_chacha20>();
 		default:
 			return nullptr;
 	}
@@ -112,12 +132,20 @@ size_t cipher_chacha20::nonce_size() const
 	return 8;
 }
 
-void cipher_chacha20::key(const void *keyv)
+void cipher_chacha20::key(const void *keyv, size_t size)
 {
-	::memcpy(key_, keyv, 32);
+	if (size > 32) {
+		SHA256_CTX ctx;
+
+		SHA256_Init(&ctx);
+		SHA256_Update(&ctx, keyv, size);
+		SHA256_Final(key_, &ctx);
+	} else {
+		::memcpy(key_, keyv, 32);
+	}
 }
 
-void cipher_chacha20::nonce(const void *noncev)
+void cipher_chacha20::nonce(const void *noncev, size_t size)
 {
 	::memcpy(nonce_, noncev, 8);
 }
@@ -133,6 +161,7 @@ size_t cipher_chacha20::encrypt(void *output, size_t outlen, const void *input, 
 
 	counter_ += inlen;
 	return inlen;
+
 }
 
 size_t cipher_chacha20::decrypt(void *output, size_t outlen, const void *input, size_t inlen)

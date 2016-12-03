@@ -24,6 +24,7 @@
 
  */
 
+class WeierstrassCurve;
 class WeierstrassPoint;
 class WeierstrassSmallIsogeny;
 
@@ -34,6 +35,7 @@ public:
 	friend class WeierstrassSmallIsogeny;
 
 	WeierstrassCurve(const GF& _a, const GF& _b) : a(_a), b(_b) {}
+	WeierstrassCurve(const Z& p) : a(p), b(p) {}
 
 	GF j_invariant() const {
 		GF a3m4 = 4*a.square()*a;
@@ -42,13 +44,27 @@ public:
 
 	WeierstrassSmallIsogeny small_isogeny (const WeierstrassPoint& generator, int l) const;
 
+	std::string serialize() const {
+		return a.serialize() + b.serialize();
+	}
+
+	size_t size() const {
+		return 2*a.size();
+	}
+
+	bool unserialize(const std::string& raw) {
+		if (raw.size() != size())
+			return false;
+		return a.unserialize(raw.substr(0, a.size())) && b.unserialize(raw.substr(a.size()));
+	}
+
 	friend std::ostream& operator<<(std::ostream& os, const WeierstrassCurve& curve) {
 		os << "y² = x³ + " << curve.a << "·x + " << curve.b;
 		return os;
 	}
 };
 
-typedef std::shared_ptr<const WeierstrassCurve> WeierstrassCurvePtr;
+typedef std::shared_ptr<WeierstrassCurve> WeierstrassCurvePtr;
 
 class WeierstrassPoint {
 	WeierstrassCurvePtr m_curve;
@@ -63,7 +79,7 @@ public:
 	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x, const GF& y) :
 		m_curve(curve), x(x), y(y), identity(false) {}
 
-	WeierstrassPoint(const WeierstrassCurvePtr& curve) : m_curve(curve), identity(true) {}
+	WeierstrassPoint(const WeierstrassCurvePtr& curve) : m_curve(curve), x(curve->a.get_p()), y(curve->a.get_p()), identity(true) {}
 
 	const WeierstrassCurvePtr& curve() const {
 		return m_curve;
@@ -75,6 +91,33 @@ public:
 
 	bool is_identity() const {
 		return identity;
+	}
+
+	size_t size() const {
+		return 1 + 2*x.size();
+	}
+
+	std::string serialize() const {
+		if (identity) {
+			return std::string(1 + size(), 0x00);
+		} else {
+			return ((char) 0x01) + x.serialize() + y.serialize();
+		}
+	}
+
+	bool unserialize(const std::string& raw) {
+		size_t half = x.size();
+		if (raw.size() != 2*half+1) {
+			return false;}
+		if (raw[0] == 0x00) {
+			identity = true;
+			return true;
+		} else if (raw[0] == 0x01) {
+			identity = false;
+			return x.unserialize(raw.substr(1, half)) && y.unserialize(raw.substr(1 + half));
+		} else {
+			return false;
+		}
 	}
 
 	bool operator==(const WeierstrassPoint& other) const {
@@ -241,7 +284,7 @@ WeierstrassSmallIsogeny WeierstrassCurve::small_isogeny (const WeierstrassPoint&
 	} else {
 		
 	}
-	return WeierstrassSmallIsogeny(std::make_shared<const WeierstrassCurve>(a - 5*t, b - 7*w), generator, l);
+	return WeierstrassSmallIsogeny(std::make_shared<WeierstrassCurve>(a - 5*t, b - 7*w), generator, l);
 }
 
 class WeierstrassIsogeny {
@@ -315,7 +358,7 @@ void test_squaring () {
 
 void test_weierstrass () {
 	Z p("3700444163740528325594401040305817124863");
-	WeierstrassCurvePtr E = std::make_shared<const WeierstrassCurve>(GF(p, 1), GF(p, 0));
+	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
 	WeierstrassPoint
 		Pa(E,
 		   GF(p, "2524646701852396349308425328218203569693", "2374093068336250774107936421407893885897"),
@@ -330,6 +373,10 @@ void test_weierstrass () {
 	Z ma("2575042839726612324"), na("8801426132580632841"), mb("4558164392438856871"), nb("20473135767366569910");
 
 	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
+
+	std::cout << '\n';
+	std::cout << "generator_a = " << gen_a << '\n';
+	std::cout << "generator_b = " << gen_b << '\n';
 
 /*	Z base(1), mul(2);
 	for (int i = 0; i < 64; ++i) {
@@ -350,25 +397,24 @@ void test_weierstrass () {
 	WeierstrassIsogeny iso_a(gen_a, 2, 63);
 	WeierstrassIsogeny iso_b(gen_b, 3, 41);
 
-/*	std::cout << "\n";
+	std::cout << "\n";
 	std::cout << "E_A: " << *iso_a.image() << "\n";
 	std::cout << "phi_A(P_B) = " << iso_a(Pb) << "\n";
 	std::cout << "phi_A(Q_B) = " << iso_a(Qb) << "\n\n";
 	std::cout << "E_B: " << *iso_b.image() << "\n";
 	std::cout << "phi_B(P_A) = " << iso_b(Pa) << "\n";
 	std::cout << "phi_B(Q_A) = " << iso_b(Qa) << "\n";
-	std::cout << "\n";*/
+	std::cout << "\n";
 
 	WeierstrassIsogeny iso_ab(ma*iso_b(Pa) + na*iso_b(Qa), 2, 63);
 	WeierstrassIsogeny iso_ba(mb*iso_a(Pb) + nb*iso_a(Qb), 3, 41);
 
 
-/*	std::cout << "\n";
+	std::cout << "\n";
 	std::cout << "E_AB: " << *iso_ab.image() << "\n";
 	std::cout << "E_BA: " << *iso_ba.image() << "\n";
 	std::cout << "\n";
-
-	std::cout << "\n";*/
+	std::cout << "\n";
 	std::cout << "j(E_AB) = " << iso_ab.image()->j_invariant() << "\n";
 	std::cout << "j(E_BA) = " << iso_ba.image()->j_invariant() << "\n";
 	std::cout << "\n";
@@ -383,9 +429,42 @@ void test_weierstrass () {
 //	iso_ab.print_j_invariants();
 }
 
-/*
+void test_serialization() {
+	Z p("3700444163740528325594401040305817124863");
+	WeierstrassCurvePtr curve = std::make_shared<WeierstrassCurve>(
+		GF(p, "2524646701852396349308425328218203569693", "2374093068336250774107936421407893885897"),
+		GF(p, "1309099413211767078055232768460483417201", "1944869260414574206229153243510104781725")
+	);
+	WeierstrassPoint identity(curve);
+
+	WeierstrassCurvePtr unserialized_curve = std::make_shared<WeierstrassCurve>(p);
+	unserialized_curve->unserialize(curve->serialize());
+
+	std::cout << *curve << '\n';
+	curve->unserialize(curve->serialize());
+	std::cout << *curve << '\n';
+
+	WeierstrassPoint point(
+		curve,
+		GF(p, "2524646701852396349308425328218203569693", "2374093068336250774107936421407893885897"),
+		GF(p, "1309099413211767078055232768460483417201", "1944869260414574206229153243510104781725")
+	);
+
+	std::cout << point << '\n';
+	point.unserialize(point.serialize());
+	std::cout << point << '\n';
+
+	point *= 0;
+
+	std::cout << point << '\n';
+	point.unserialize(point.serialize());
+	std::cout << point << '\n';
+}
+
+#ifdef WEIERSTRASS_MAIN
 int main (int argc, char ** argv) {
+	test_serialization();
 	test_weierstrass();
 	return 0;
 }
-*/
+#endif

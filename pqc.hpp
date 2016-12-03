@@ -2,6 +2,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "gf.hpp"
 
@@ -67,8 +68,10 @@ public:
 	virtual size_t key_size() const = 0;
 	virtual size_t nonce_size() const = 0;
 
-	virtual void key(const void *) = 0;
-	virtual void nonce(const void *) = 0;
+	virtual void key(const void *, size_t) = 0;
+	virtual void nonce(const void *, size_t) = 0;
+	virtual void key(const std::string&);
+	virtual void nonce(const std::string&);
 
 	virtual size_t encrypt(void *, size_t, const void *, size_t) = 0;
 	virtual size_t decrypt(void *, size_t, const void *, size_t) = 0;
@@ -78,7 +81,7 @@ public:
 
 	virtual operator pqc_cipher () const = 0;
 
-	static cipher * create(enum pqc_cipher);
+	static std::shared_ptr<cipher> create(enum pqc_cipher);
 	static enum pqc_cipher from_string(const char *str, size_t size);
 	static const char *to_string(enum pqc_cipher);
 
@@ -100,10 +103,10 @@ public:
 	kex(mode);
 	virtual ~kex() {}
 
-	virtual std::string init(mode) = 0;
+	virtual std::string init() = 0;
 	virtual std::string fini(const std::string&) = 0;
 
-	static kex * create(enum pqc_kex);
+	static std::shared_ptr<kex> create(enum pqc_kex, mode);
 	static enum pqc_kex from_string (const char *, size_t);
 	static const char *to_string(enum pqc_kex);
 
@@ -123,12 +126,15 @@ public:
 	virtual size_t size() const = 0;
 	virtual void compute(void *, const void *, size_t) = 0;
 	virtual void compute(void *, const std::string&);
+	virtual std::string compute(const std::string&);
+	virtual std::string compute(const void *, size_t);
 
 	virtual void key(const void *, size_t len) = 0;
+	virtual void key(const std::string&);
 
 	virtual operator enum pqc_mac() const = 0;
 
-	static mac * create(enum pqc_mac);
+	static std::shared_ptr<mac> create(enum pqc_mac);
 	static enum pqc_mac from_string (const char *, size_t);
 	static const char *to_string(enum pqc_mac);
 
@@ -167,6 +173,7 @@ struct handshake {
 class session
 {
 	enum class state {
+		ERROR,
 		INIT,
 		HANDSHAKING,
 		HANDSHAKING_TILL_SENT,
@@ -178,6 +185,13 @@ class session
 		NONE,
 		SERVER,
 		CLIENT
+	};
+	enum packettype {
+		CLOSE = 0,
+		DATA = 1,
+		REKEY = 2,
+		MORE = 126,
+		ERROR = 127
 	};
 public:
 	enum class error {
@@ -204,6 +218,7 @@ public:
 	void set_kex(enum pqc_kex);
 	enum pqc_kex get_kex() const;
 
+	const std::string& get_server_name() const;
 	void set_server_auth(const char *);
 	void set_auth(const char *);
 	void set_auth_callback(const auth_callback_t&);
@@ -217,6 +232,7 @@ public:
 	size_t bytes_outgoing_available() const;
 	bool is_handshaken() const;
 	bool is_closed() const;
+	bool is_remote_closed() const;
 	void write_incoming(const char *, size_t);
 	void write(const char *, size_t);
 	ssize_t read(char *, size_t);
@@ -228,23 +244,33 @@ public:
 	void close();
 
 private:
-	void send_handshake_init(const char *server_name = nullptr);
-	void send_handshake_fini();
+	void send_handshake_init(const std::string&);
+	void send_handshake_fini(const std::string&);
+	void set_error(error);
+	void decrypt_raw(size_t size = 0);
+	bool decrypt_needed();
+	packettype decrypt_next_packet(std::string&);
+	void handle_incoming_data();
 
 	error error_;
 	state state_;
 	mode mode_;
+	bool remote_closed_;
 	size_t rekey_after_, since_last_rekey_;
 	std::string incoming_, outgoing_, encrypted_incoming_;
 
-	std::string key_, peer_key_;
-	std::string nonce_, peer_nonce_;
+	std::string decrypted_incoming_;
+	size_t encrypted_need_size_;
 
+	std::string session_key_, ephemeral_key_, peer_ephemeral_key_;
+	//std::string nonce_, peer_nonce_;
+
+	std::string server_name_;
 	std::string server_auth_, auth_;
-	kex *kex_;
+	std::shared_ptr<kex> kex_;
 	//auth *auth_;
-	cipher *cipher_, *peer_cipher_;
-	mac *mac_, *peer_mac_;
+	std::shared_ptr<cipher> cipher_, peer_cipher_;
+	std::shared_ptr<mac> mac_, peer_mac_;
 	auth_callback_t auth_callback_;
 	ciphers_bitset enabled_ciphers_;
 	auths_bitset enabled_auths_;

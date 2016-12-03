@@ -100,6 +100,10 @@ public:
 		return ::mpz_sizeinbase(*this, 2);
 	}
 
+	std::size_t size() const {
+		return ::mpz_sizeinbase(*this, 256);
+	}
+
 	bool testbit (std::size_t index) const {
 		return ::mpz_tstbit(*this, index);
 	}
@@ -451,6 +455,10 @@ public:
 	bool is_square() const {
 		Z exp = (*p * *p - 1) >> 1;
 		return this->pow(exp) == 1;
+	}
+
+	size_t size() const {
+		return 2 * p->size();
 	}
 
 	std::string serialize() const;

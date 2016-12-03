@@ -52,7 +52,7 @@ std::string base64_decode(const std::string& input)
 	if (!r)
 		return "";
 
-	result.resize(len+1);
+	result.resize(len);
 
 	return result;
 }

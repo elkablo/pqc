@@ -41,7 +41,7 @@ std::string random_string(size_t size)
 
 static inline size_t bits2limbs (size_t bits)
 {
-	return (((bits + (size_t) (GMP_LIMB_BITS-1)) & ~(size_t) (GMP_LIMB_BITS-1)) / GMP_LIMB_BITS);
+	return (bits + GMP_LIMB_BITS - 1) / GMP_LIMB_BITS;
 }
 
 Z random_z(size_t bits)

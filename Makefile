@@ -3,7 +3,7 @@ LDFLAGS = -lgmpxx -lgmp
 
 OBJS = weierstrass.o gf.o
 
-all: pqc
+all: pqc weier
 
 gf.o: gf.hpp
 weierstrass.o: gf.hpp
@@ -12,7 +12,7 @@ weier: $(OBJS)
 	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS)
 
 %.o: %.cpp
-	g++ $(CXXFLAGS) -c -o $@ $<
+	g++ -DWEIERSTRASS_MAIN $(CXXFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf $(OBJS) weier

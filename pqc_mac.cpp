@@ -11,6 +11,25 @@ void mac::compute(void *digest, const std::string& input)
 	compute(digest, input.c_str(), input.size());
 }
 
+std::string mac::compute(const void *input, size_t len)
+{
+	std::string result(size(), 0);
+	compute(&result[0], input, len);
+	return result;
+}
+
+std::string mac::compute(const std::string& input)
+{
+	std::string result(size(), 0);
+	compute(&result[0], input.c_str(), input.size());
+	return result;
+}
+
+void mac::key(const std::string& val)
+{
+	key(reinterpret_cast<const void *>(val.c_str()), val.size());
+}
+
 class hmac_sha256 : public mac
 {
 public:
@@ -35,13 +54,13 @@ private:
 	uint64_t o_pad_[16], i_pad_[16];
 };
 
-mac * mac::create(enum pqc_mac type)
+std::shared_ptr<mac> mac::create(enum pqc_mac type)
 {
 	switch (type) {
 		case PQC_MAC_HMAC_SHA256:
-			return new hmac_sha256();
+			return std::make_shared<hmac_sha256>();
 		case PQC_MAC_HMAC_SHA512:
-			return new hmac_sha512();
+			return std::make_shared<hmac_sha512>();
 		default:
 			return nullptr;
 	}
