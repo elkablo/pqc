@@ -79,6 +79,18 @@ public:
 	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x, const GF& y) :
 		m_curve(curve), x(x), y(y), identity(false) {}
 
+	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x) :
+		m_curve(curve), x(x), identity(false) {
+
+		y = (x.square() + m_curve->a)*x + m_curve->b;
+		if (!y.is_square()) {
+			m_curve.reset();
+			return;
+		}
+
+		y.sqrt();
+	}
+
 	WeierstrassPoint(const WeierstrassCurvePtr& curve) : m_curve(curve), x(curve->a.get_p()), y(curve->a.get_p()), identity(true) {}
 
 	const WeierstrassCurvePtr& curve() const {
@@ -86,7 +98,7 @@ public:
 	}
 
 	bool check() const {
-		return identity || y.square() == ((x.square() + m_curve->a)*x + m_curve->b);
+		return m_curve && identity || y.square() == ((x.square() + m_curve->a)*x + m_curve->b);
 	}
 
 	bool is_identity() const {
@@ -310,6 +322,43 @@ public:
 		}
 	}
 
+	WeierstrassIsogeny(const WeierstrassPoint& generator, int base, int exp, const std::vector<int>& strategy) :
+		m_generator(generator), m_base(base), m_exp(exp)
+	{
+		WeierstrassCurvePtr curve = generator.curve();
+		std::vector<WeierstrassPoint> Rs{generator};
+		std::vector<int> hs{exp};
+
+		while (Rs.size()) {
+			WeierstrassPoint tmp = Rs.back();
+			int h = hs.back();
+			int split = strategy[h];
+
+			while (h > 1) {
+				for (int i = 0; i < h - split; ++i)
+					tmp *= base;
+				Rs.push_back(tmp);
+				hs.push_back(split);
+				h = split;
+				split = strategy[h];
+			}
+
+			tmp = Rs.back();
+			Rs.pop_back();
+			h = hs.back();
+			hs.pop_back();
+
+			auto isogeny = tmp.curve()->small_isogeny(tmp, base);
+
+			for (size_t i = 0; i < Rs.size(); ++i) {
+				Rs[i] = isogeny(Rs[i]);
+				--hs[i];
+			}
+
+			m_isogenies.push_back(isogeny);
+		}
+	}
+
 	Z degree() const {
 		return Z(m_base).pow(m_exp);
 	}
@@ -356,7 +405,51 @@ void test_squaring () {
 	std::cout << "sqrt(x²)² = " << x << "\n";
 }
 
+#ifdef WEIERSTRASS_MAIN
+#include <chrono>
+#include <functional>
+#include "pqc.hpp"
+
+void measure(const std::string& str, int repeats, std::function<void()> f) {
+	using namespace std::chrono;
+	auto start = steady_clock::now();
+	for (int i = 0; i < repeats; ++i)
+		f();
+	auto end = steady_clock::now();
+	std::cout << str << " took " << duration_cast<milliseconds>(end - start).count() << "ms\n";
+}
+
 void test_weierstrass () {
+	std::vector<int> strategy{
+		0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
+		10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18,
+		18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 25, 26,
+		26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33, 33, 34,
+		34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 40, 41, 41, 42,
+		42, 43, 43, 44, 44, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 50,
+		50, 51, 51, 52, 52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58,
+		58, 59, 59, 60, 60, 61, 61, 62, 62, 63, 63, 64, 64, 65, 65, 66,
+		66, 67, 67, 68, 68, 69, 69, 70, 70, 71, 71, 72, 72, 73, 73, 74,
+		74, 75, 75, 76, 76, 77, 77, 78, 78, 79, 79, 80, 80, 81, 81, 82,
+		82, 83, 83, 84, 84, 85, 85, 86, 86, 87, 87, 88, 88, 89, 89, 90,
+		90, 91, 91, 92, 92, 93, 93, 94, 94, 95, 95, 96, 96, 97, 97, 98,
+		98, 99, 99, 100, 100, 101, 101, 102, 102, 103, 103, 104, 104,
+		105, 105, 106, 106, 107, 107, 108, 108, 109, 109, 110, 110,
+		111, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 116,
+		117, 117, 118, 118, 119, 119, 120, 120, 121, 121, 122, 122,
+		123, 123, 124, 124, 125, 125, 126, 126, 127, 127, 128, 128,
+		129, 129, 130, 130, 131, 131, 132, 132, 133, 133, 134, 134,
+		135, 135, 136, 136, 137, 137, 138, 138, 139, 139, 140, 140,
+		141, 141, 142, 142, 143, 143, 144, 144, 145, 145, 146, 146,
+		147, 147, 148, 148, 149, 149, 150, 150, 151, 151, 152, 152,
+		153, 153, 154, 154, 155, 155, 156, 156, 157, 157, 158, 158,
+		159, 159, 160, 160, 161, 161, 162, 162, 163, 163, 164, 164,
+		165, 165, 166, 166, 167, 167, 168, 168, 169, 169, 170, 170,
+		171, 171, 172, 172, 173, 173, 174, 174, 175, 175, 176, 176,
+		177, 177, 178, 178, 179, 179, 180, 180, 181, 181, 182, 182,
+		183, 183, 184, 184, 185, 185, 186};
+
+/*
 	Z p("3700444163740528325594401040305817124863");
 	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
 	WeierstrassPoint
@@ -371,31 +464,98 @@ void test_weierstrass () {
 	WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
 
 	Z ma("2575042839726612324"), na("8801426132580632841"), mb("4558164392438856871"), nb("20473135767366569910");
+*/
+	Z p("10354717741769305252977768237866805321427389645549071170116189679054678940682478846502882896561066713624553211618840202385203911976522554393044160468771151816976706840078913334358399730952774926980235086850991501872665651576831");
 
+	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
+	WeierstrassPoint Pa(E, GF(p, 11), GF(p, Z(11*11*11+11)).sqrt());
+	WeierstrassPoint Pb(E, GF(p, 6), GF(p, Z(6*6*6+6)).sqrt());
+	int la = 2, lb = 3, ea = 372, eb = 239;
+	Z lea = Z(la).pow(ea);
+	Z leb = Z(lb).pow(eb);
+	Pa *= leb;
+	Pb *= lea;
+	WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
+
+	Z ma, na, mb, nb;
+
+	if (true) {
+		ma = pqc::random_z_below(lea/2)*la;
+		mb = pqc::random_z_below(leb/2)*lb;
+		na = 1;
+		nb = 1;
+	} else {
+		do {
+			ma = pqc::random_z_below(lea);
+			na = pqc::random_z_below(lea);
+		} while ((ma % la) == 0 && (na % la) == 0);
+		do {
+			mb = pqc::random_z_below(leb);
+			nb = pqc::random_z_below(leb);
+		} while ((mb % lb) == 0 && (nb % lb) == 0);
+	}
+	
 	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
 
-	std::cout << '\n';
-	std::cout << "generator_a = " << gen_a << '\n';
-	std::cout << "generator_b = " << gen_b << '\n';
-
-/*	Z base(1), mul(2);
-	for (int i = 0; i < 64; ++i) {
-		if ((base * gen_a).is_identity()) {
-			std::cout << "gen_a is of order " << mul << "^" << i << "\n";
+	if (false) {
+		Z base(1), mul(la);
+		for (int i = 0; i <= ea; ++i) {
+			if ((base * Pa).is_identity()) {
+				std::cout << "Pa is of order " << mul << "^" << i << "\n";
+			}
+			if ((base * Qa).is_identity()) {
+				std::cout << "Qa is of order " << mul << "^" << i << "\n";
+			}
+			if ((base * gen_a).is_identity()) {
+				std::cout << "gen_a is of order " << mul << "^" << i << "\n";
+			}
+			base *= mul;
 		}
-		base *= mul;
+
+		base = 1;
+		mul = lb;
+		for (int i = 0; i <= eb; ++i) {
+			if ((base * Pb).is_identity()) {
+				std::cout << "Pb is of order " << mul << "^" << i << "\n";
+			}
+			if ((base * Qb).is_identity()) {
+				std::cout << "Qb is of order " << mul << "^" << i << "\n";
+			}
+			if ((base * gen_b).is_identity()) {
+				std::cout << "gen_b is of order " << mul << "^" << i << "\n";
+			}
+			base *= mul;
+		}
+
+		return;
 	}
 
-	base = 1, mul = 3;
-	for (int i = 0; i < 42; ++i) {
-		if ((base * gen_b).is_identity()) {
-			std::cout << "gen_b is of order " << mul << "^" << i << "\n";
-		}
-		base *= mul;
-	}*/
+	if (false) {
+		measure("A without strategy", 10, [&gen_a, la, ea, &Pb, &Qb]() {
+			WeierstrassIsogeny iso_a(gen_a, la, ea);
+			iso_a(Pb);
+			iso_a(Qb);
+		});
+		measure("B without strategy", 10, [&gen_b, lb, eb, &Pa, &Qa]() {
+			WeierstrassIsogeny iso_b(gen_b, lb, eb);
+			iso_b(Pa);
+			iso_b(Qa);
+		});
+		measure("A with strategy", 10, [&gen_a, la, ea, &Pb, &Qb, &strategy]() {
+			WeierstrassIsogeny iso_a(gen_a, la, ea, strategy);
+			iso_a(Pb);
+			iso_a(Qb);
+		});
+		measure("V with strategy", 10, [&gen_b, lb, eb, &Pa, &Qa, &strategy]() {
+			WeierstrassIsogeny iso_b(gen_b, lb, eb, strategy);
+			iso_b(Pa);
+			iso_b(Qa);
+		});
+		return;
+	}
 
-	WeierstrassIsogeny iso_a(gen_a, 2, 63);
-	WeierstrassIsogeny iso_b(gen_b, 3, 41);
+	WeierstrassIsogeny iso_a(gen_a, la, ea, strategy);
+	WeierstrassIsogeny iso_b(gen_b, lb, eb, strategy);
 
 	std::cout << "\n";
 	std::cout << "E_A: " << *iso_a.image() << "\n";
@@ -406,8 +566,16 @@ void test_weierstrass () {
 	std::cout << "phi_B(Q_A) = " << iso_b(Qa) << "\n";
 	std::cout << "\n";
 
-	WeierstrassIsogeny iso_ab(ma*iso_b(Pa) + na*iso_b(Qa), 2, 63);
-	WeierstrassIsogeny iso_ba(mb*iso_a(Pb) + nb*iso_a(Qb), 3, 41);
+	WeierstrassPoint gen_ab = ma*iso_b(Pa) + na*iso_b(Qa);
+	WeierstrassPoint gen_ba = mb*iso_a(Pb) + nb*iso_a(Qb);
+
+	std::cout << '\n';
+	std::cout << "generator_ab = " << gen_ab << '\n';
+	std::cout << "generator_ba = " << gen_ba << '\n';
+	std::cout << '\n';
+
+	WeierstrassIsogeny iso_ab(gen_ab, la, ea, strategy);
+	WeierstrassIsogeny iso_ba(gen_ba, lb, eb, strategy);
 
 
 	std::cout << "\n";
@@ -461,9 +629,8 @@ void test_serialization() {
 	std::cout << point << '\n';
 }
 
-#ifdef WEIERSTRASS_MAIN
 int main (int argc, char ** argv) {
-	test_serialization();
+	//test_serialization();
 	test_weierstrass();
 	return 0;
 }

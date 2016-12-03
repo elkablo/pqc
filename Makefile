@@ -1,7 +1,7 @@
 CXXFLAGS = -fPIC -O2 -fno-exceptions -fno-stack-protector -march=native -std=c++14
-LDFLAGS = -lgmpxx -lgmp
+LDFLAGS = -lgmpxx -lgmp -lcrypto
 
-OBJS = weierstrass.o gf.o
+OBJS = weierstrass.o gf.o pqc_random.o
 
 all: pqc weier
 
