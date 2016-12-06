@@ -9,7 +9,6 @@
 #include <poll.h>
 #include <pqc_session.hpp>
 
-
 void waitfd(int fd, int ms)
 {
 	struct pollfd pfd;

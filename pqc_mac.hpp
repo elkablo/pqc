@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <string>
 #include <memory>
-#include <pqc.hpp>
+#include <pqc_enumset.hpp>
 
 namespace pqc
 {
@@ -37,9 +37,9 @@ public:
 	static const char *to_string(enum pqc_mac);
 
 	static constexpr enum pqc_mac get_default() { return PQC_MAC_HMAC_SHA512; }
-	static constexpr macs_bitset enabled_default()
+	static constexpr macset enabled_default()
 	{
-		return (1 << PQC_MAC_HMAC_SHA256) | (1 << PQC_MAC_HMAC_SHA512);
+		return macset(PQC_MAC_HMAC_SHA256, PQC_MAC_HMAC_SHA512);
 	}
 };
 

@@ -2,8 +2,6 @@
 #include <string>
 #include <nettle/base64.h>
 
-#include "pqc.hpp"
-
 namespace pqc
 {
 

@@ -2,7 +2,6 @@
 #include <cstring>
 #include <cstdlib>
 
-#include <pqc.hpp>
 #include <pqc_handshake.hpp>
 #include <pqc_cipher.hpp>
 #include <pqc_kex.hpp>
@@ -14,8 +13,8 @@ handshake::handshake() :
 	version(-1),
 	server_name(NULL),
 	kex(PQC_KEX_UNKNOWN),
-	supported_ciphers(0),
-	supported_macs(0),
+	supported_ciphers(),
+	supported_macs(),
 	server_auth(NULL),
 	client_auths(NULL),
 	client_auths_len(0),
@@ -51,9 +50,9 @@ static bool has_prefix (const char *s, const char *p, const char ** n)
 	return r;
 }
 
-static uint8_t pqc_supported_ciphers_parse (const char *str, size_t size)
+static cipherset pqc_supported_ciphers_parse (const char *str, size_t size)
 {
-	uint8_t result = 0;
+	cipherset result;
 	const char *ptr = str, *space, *next;
 	while (ptr < str + size) {
 		size_t len;
@@ -65,17 +64,15 @@ static uint8_t pqc_supported_ciphers_parse (const char *str, size_t size)
 			next = str + size;
 			len = str + size - ptr;
 		}
-		enum pqc_cipher cipher = cipher::from_string (ptr, len);
-		if (cipher != PQC_CIPHER_UNKNOWN)
-			result |= 1 << cipher;
+		result.set(cipher::from_string (ptr, len));
 		ptr = next;
 	}
 	return result;
 }
 
-static uint8_t pqc_supported_macs_parse (const char *str, size_t size)
+static macset pqc_supported_macs_parse (const char *str, size_t size)
 {
-	uint8_t result = 0;
+	macset result;
 	const char *ptr = str, *space, *next;
 	while (ptr < str + size) {
 		size_t len;
@@ -87,9 +84,7 @@ static uint8_t pqc_supported_macs_parse (const char *str, size_t size)
 			next = str + size;
 			len = str + size - ptr;
 		}
-		enum pqc_mac mac = mac::from_string (ptr, len);
-		if (mac != PQC_MAC_UNKNOWN)
-			result |= 1 << mac;
+		result.set(mac::from_string (ptr, len));
 		ptr = next;
 	}
 	return result;

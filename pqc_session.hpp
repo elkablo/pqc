@@ -4,10 +4,14 @@
 #include <functional>
 #include <string>
 #include <memory>
-#include <pqc.hpp>
+#include <pqc_enumset.hpp>
 
 namespace pqc
 {
+
+class kex;
+class cipher;
+class mac;
 
 class session
 {
@@ -111,10 +115,10 @@ private:
 	std::shared_ptr<cipher> cipher_, peer_cipher_;
 	std::shared_ptr<mac> mac_, peer_mac_;
 	auth_callback_t auth_callback_;
-	ciphers_bitset enabled_ciphers_;
-	auths_bitset enabled_auths_;
-	macs_bitset enabled_macs_;
-	kexes_bitset enabled_kexes_;
+	cipherset enabled_ciphers_;
+	authset enabled_auths_;
+	macset enabled_macs_;
+	kexset enabled_kexes_;
 	enum pqc_kex use_kex_;
 };
 

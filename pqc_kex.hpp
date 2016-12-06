@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <string>
 #include <memory>
-#include <pqc.hpp>
+#include <pqc_enumset.hpp>
 
 namespace pqc
 {
@@ -28,9 +28,9 @@ public:
 	static const char *to_string(enum pqc_kex);
 
 	static constexpr enum pqc_kex get_default() { return PQC_KEX_SIDHex; }
-	static constexpr kexes_bitset enabled_default()
+	static constexpr kexset enabled_default()
 	{
-		return (1 << PQC_KEX_SIDHex);
+		return kexset(PQC_KEX_SIDHex);
 	}
 protected:
 	mode mode_;

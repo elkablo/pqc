@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <string>
 #include <memory>
-#include <pqc.hpp>
+#include <pqc_enumset.hpp>
 
 namespace pqc
 {
@@ -35,9 +35,9 @@ public:
 	static const char *to_string(enum pqc_cipher);
 
 	static constexpr enum pqc_cipher get_default() { return PQC_CIPHER_CHACHA20; }
-	static constexpr ciphers_bitset enabled_default()
+	static constexpr cipherset enabled_default()
 	{
-		return (1 << PQC_CIPHER_CHACHA20);
+		return cipherset(PQC_CIPHER_CHACHA20);
 	}
 };
 

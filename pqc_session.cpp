@@ -1,6 +1,5 @@
 #include <sstream>
 
-#include <pqc.hpp>
 #include <pqc_session.hpp>
 #include <pqc_handshake.hpp>
 #include <pqc_cipher.hpp>
@@ -21,7 +20,7 @@ session::session() :
 	since_last_rekey_(0),
 	encrypted_need_size_(0),
 	enabled_ciphers_(cipher::enabled_default()),
-	enabled_auths_(0),
+	enabled_auths_(),
 	enabled_macs_(mac::enabled_default()),
 	enabled_kexes_(kex::enabled_default()),
 	use_kex_(kex::get_default())
@@ -31,27 +30,45 @@ session::~session()
 {
 }
 
-#define ENABLER(name,type,var,fst,last)			\
-void session::name##_enable (type value, bool enable)	\
-{							\
-	if (value < fst || value > last)		\
-		return;					\
-	if (enable)					\
-		var |= 1 << value;			\
-	else						\
-		var &= ~(uint32_t) (1 << value);	\
-}							\
-bool session::is_##name##_enabled (type value) const	\
-{							\
-	if (value < fst || value > last)		\
-		return false;				\
-	return var & (1 << value);			\
+void session::cipher_enable(enum pqc_cipher cipher, bool enable)
+{
+	enabled_ciphers_.set(cipher, enable);
 }
-ENABLER(cipher, enum pqc_cipher, enabled_ciphers_, PQC_CIPHER_FIRST, PQC_CIPHER_LAST)
-ENABLER(kex, enum pqc_kex, enabled_kexes_, PQC_KEX_FIRST, PQC_KEX_LAST)
-ENABLER(auth, enum pqc_auth, enabled_auths_, PQC_AUTH_FIRST, PQC_AUTH_LAST)
-ENABLER(mac, enum pqc_mac, enabled_macs_, PQC_MAC_FIRST, PQC_MAC_LAST)
-#undef ENABLER
+
+bool session::is_cipher_enabled(enum pqc_cipher cipher) const
+{
+	return enabled_ciphers_.isset(cipher);
+}
+
+void session::mac_enable(enum pqc_mac mac, bool enable)
+{
+	enabled_macs_.set(mac, enable);
+}
+
+bool session::is_mac_enabled(enum pqc_mac mac) const
+{
+	return enabled_macs_.isset(mac);
+}
+
+void session::auth_enable(enum pqc_auth auth, bool enable)
+{
+	enabled_auths_.set(auth, enable);
+}
+
+bool session::is_auth_enabled(enum pqc_auth auth) const
+{
+	return enabled_auths_.isset(auth);
+}
+
+void session::kex_enable(enum pqc_kex kex, bool enable)
+{
+	enabled_kexes_.set(kex, enable);
+}
+
+bool session::is_kex_enabled(enum pqc_kex kex) const
+{
+	return enabled_kexes_.isset(kex);
+}
 
 const std::string& session::get_server_name() const {
 	return server_name_;
@@ -142,8 +159,8 @@ void session::write_incoming(const char *buf, size_t size)
 			return set_error(error::HANDSHAKE);
 		encrypted_incoming_.erase(0, ptr - encrypted_incoming_.c_str());
 
-		ciphers_bitset available_ciphers = handshake.supported_ciphers & enabled_ciphers_;
-		macs_bitset available_macs = handshake.supported_macs & enabled_macs_;
+		cipherset available_ciphers = handshake.supported_ciphers & enabled_ciphers_;
+		macset available_macs = handshake.supported_macs & enabled_macs_;
 
 		if (handshake.version != 1
 			|| handshake.kex == PQC_KEX_UNKNOWN
@@ -155,19 +172,8 @@ void session::write_incoming(const char *buf, size_t size)
 		)
 			return set_error(error::HANDSHAKE);
 
-		for_each_pqc_cipher(c) {
-			if ((1 << c) & available_ciphers) {
-				cipher_ = cipher::create(c);
-				break;
-			}
-		}
-
-		for_each_pqc_mac(m) {
-			if ((1 << m) & available_macs) {
-				mac_ = mac::create(m);
-				break;
-			}
-		}
+		cipher_ = cipher::create(*available_ciphers.begin());
+		mac_ = mac::create(*available_macs.begin());
 
 		std::string encrypted_secret;
 
@@ -423,15 +429,13 @@ void session::send_handshake_init(const std::string& encrypted_secret)
 	stream	<< "Key-exchange: " << kex::to_string(use_kex_) << '\n'
 		<< "Supported-ciphers:";
 
-	for_each_pqc_cipher(c)
-		if (is_cipher_enabled(c))
-			stream << " " << cipher::to_string(c);
+	for (auto c : enabled_ciphers_)
+		stream << " " << cipher::to_string(c);
 
 	stream << "\nSupported-MACs:";
 
-	for_each_pqc_mac(m)
-		if (is_mac_enabled(m))
-			stream << " " << mac::to_string(m);
+	for (auto m : enabled_macs_)
+		stream << " " << mac::to_string(m);
 
 	stream << '\n';
 

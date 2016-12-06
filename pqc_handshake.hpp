@@ -1,7 +1,7 @@
 #ifndef PQC_HANDSHAKE_HPP
 #define PQC_HANDSHAKE_HPP
 
-#include <pqc.hpp>
+#include <pqc_enumset.hpp>
 
 namespace pqc
 {
@@ -10,8 +10,8 @@ struct handshake {
 	int version;
 	char *server_name;
 	enum pqc_kex kex;
-	ciphers_bitset supported_ciphers;
-	macs_bitset supported_macs;
+	cipherset supported_ciphers;
+	macset supported_macs;
 	char *server_auth;
 
 	char **client_auths;
