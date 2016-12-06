@@ -45,20 +45,14 @@ void cipher_chacha20::nonce(const void *noncev, size_t size)
 	chacha_.set_nonce(noncev);
 }
 
-size_t cipher_chacha20::encrypt(void *output, size_t outlen, const void *input, size_t inlen)
+void cipher_chacha20::encrypt(void *data, size_t len)
 {
-	if (outlen < inlen)
-		return inlen;
-
-	memmove(output, input, outlen);
-	chacha_.crypt(output, outlen);
-
-	return inlen;
+	chacha_.crypt(data, len);
 }
 
-size_t cipher_chacha20::decrypt(void *output, size_t outlen, const void *input, size_t inlen)
+void cipher_chacha20::decrypt(void *data, size_t len)
 {
-	return encrypt(output, outlen, input, inlen);
+	chacha_.crypt(data, len);
 }
 
 }

@@ -18,8 +18,8 @@ public:
 	void key(const void *, size_t);
 	void nonce(const void *, size_t);
 
-	size_t encrypt(void *, size_t, const void *, size_t);
-	size_t decrypt(void *, size_t, const void *, size_t);
+	void encrypt(void *, size_t);
+	void decrypt(void *, size_t);
 
 	operator enum pqc_cipher () const;
 private:

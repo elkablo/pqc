@@ -290,7 +290,7 @@ session::packettype session::decrypt_next_packet(std::string& data)
 	if (!decrypt_needed())
 		return packettype::MORE;
 
-	const unsigned char *pkt = reinterpret_cast<const unsigned char *>(&decrypted_incoming_[0]);
+	const uint8_t *pkt = reinterpret_cast<const uint8_t *>(&decrypted_incoming_[0]);
 
 	if (pkt[0] == packettype::DATA) {
 		if (decrypted_incoming_.size() >= 5)
@@ -355,6 +355,27 @@ void session::handle_incoming_data()
 	}
 }
 
+void session::write_packet(const char *buf, size_t size)
+{
+	const size_t start = outgoing_.size();
+	const size_t hdr_size = 5;
+
+	uint8_t hdr[hdr_size] = {
+		0x01, 0x00, 0x00,
+		(uint8_t) ((size >> 8) & 0xff),
+		(uint8_t) (size & 0xff)
+	};
+
+	outgoing_.append(reinterpret_cast<char *>(hdr), 5);
+	outgoing_.append(buf, size);
+	outgoing_.append(mac_->compute(&outgoing_[start], hdr_size + size));
+
+	cipher_->encrypt(
+		reinterpret_cast<void *>(&outgoing_[start]),
+		hdr_size + size + mac_->size()
+	);
+}
+
 void session::write(const char *buf, size_t size)
 {
 	if (state_ != state::NORMAL || !size)
@@ -366,27 +387,13 @@ void session::write(const char *buf, size_t size)
 
 	outgoing_.reserve(outgoing_.size() + size + pkt_count*wrp_size);
 
-	size_t remaining = size;
-	for (const char *pkt = buf; pkt < buf + size; pkt += 65536, remaining -= 65536) {
-		const size_t beginning = outgoing_.size();
-		const uint32_t pkt_size = size > 65536 ? 65536 : size;
-		unsigned char hdr[hdr_size] = {
-			0x01, 0x00, 0x00,
-			(unsigned char) ((pkt_size >> 8) & 0xff),
-			(unsigned char) (pkt_size & 0xff)
-		};
+	const char *pkt, *end = buf + size;
 
-		outgoing_.append(reinterpret_cast<const char *>(hdr), 5);
-		outgoing_.append(pkt, pkt_size);
-		outgoing_.append(mac_->compute(&outgoing_[beginning], hdr_size + pkt_size));
+	for (pkt = buf; pkt + 65536 < end; pkt += 65536, size -= 65536)
+		write_packet(pkt, 65536);
 
-		cipher_->encrypt(
-			reinterpret_cast<void *>(&outgoing_[beginning]),
-			pkt_size + wrp_size,
-			reinterpret_cast<void *>(&outgoing_[beginning]),
-			pkt_size + wrp_size
-		);
-	}
+	if (size)
+		write_packet(pkt, size);
 }
 
 ssize_t session::read(char *buf, size_t size)

@@ -87,6 +87,7 @@ public:
 	void close();
 
 private:
+	void write_packet(const char *, size_t);
 	void send_handshake_init(const std::string&);
 	void send_handshake_fini(const std::string&);
 	void set_error(error);

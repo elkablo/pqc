@@ -6,6 +6,26 @@
 namespace pqc
 {
 
+size_t cipher::encrypt(void *out, size_t olen, const void *in, size_t ilen)
+{
+	if (olen > ilen)
+		olen = ilen;
+
+	memmove(out, in, olen);
+	encrypt(out, olen);
+	return olen;
+}
+
+size_t cipher::decrypt(void *out, size_t olen, const void *in, size_t ilen)
+{
+	if (olen > ilen)
+		olen = ilen;
+
+	memmove(out, in, olen);
+	decrypt(out, olen);
+	return olen;
+}
+
 std::string cipher::encrypt(const std::string& input)
 {
 	std::string output;

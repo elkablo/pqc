@@ -19,14 +19,17 @@ public:
 
 	virtual void key(const void *, size_t) = 0;
 	virtual void nonce(const void *, size_t) = 0;
-	virtual void key(const std::string&);
-	virtual void nonce(const std::string&);
+	void key(const std::string&);
+	void nonce(const std::string&);
 
-	virtual size_t encrypt(void *, size_t, const void *, size_t) = 0;
-	virtual size_t decrypt(void *, size_t, const void *, size_t) = 0;
+	virtual void encrypt(void *, size_t) = 0;
+	virtual void decrypt(void *, size_t) = 0;
 
-	virtual std::string encrypt(const std::string&);
-	virtual std::string decrypt(const std::string&);
+	size_t encrypt(void *, size_t, const void *, size_t);
+	size_t decrypt(void *, size_t, const void *, size_t);
+
+	std::string encrypt(const std::string&);
+	std::string decrypt(const std::string&);
 
 	virtual operator pqc_cipher () const = 0;
 
