@@ -1,7 +1,7 @@
 #include <cstring>
 
-#include "pqc.hpp"
-#include "pqc_cipher_chacha20.hpp"
+#include <pqc_cipher.hpp>
+#include <pqc_cipher_chacha20.hpp>
 
 namespace pqc
 {

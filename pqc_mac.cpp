@@ -1,7 +1,8 @@
 #include <cstring>
 #include <openssl/sha.h>
 
-#include "pqc.hpp"
+#include <pqc.hpp>
+#include <pqc_mac.hpp>
 
 namespace pqc
 {

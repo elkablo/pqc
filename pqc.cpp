@@ -7,6 +7,9 @@
 
 #include <pqc.hpp>
 #include <pqc_cipher.hpp>
+#include <pqc_kex.hpp>
+#include <pqc_mac.hpp>
+#include <pqc_random.hpp>
 
 namespace pqc
 {

@@ -1,7 +1,8 @@
 #include <cstring>
 
-#include "pqc.hpp"
-#include "pqc_weierstrass.hpp"
+#include <pqc_kex.hpp>
+#include <pqc_random.hpp>
+#include <pqc_weierstrass.hpp>
 
 namespace pqc
 {

@@ -64,59 +64,8 @@ typedef uint32_t kexes_bitset;
 typedef uint32_t auths_bitset;
 
 class cipher;
-
-class kex
-{
-public:
-	enum class mode {
-		SERVER,
-		CLIENT
-	};
-
-	kex(mode);
-	virtual ~kex() {}
-
-	virtual std::string init() = 0;
-	virtual std::string fini(const std::string&) = 0;
-
-	static std::shared_ptr<kex> create(enum pqc_kex, mode);
-	static enum pqc_kex from_string (const char *, size_t);
-	static const char *to_string(enum pqc_kex);
-
-	static constexpr enum pqc_kex get_default() { return PQC_KEX_SIDHex; }
-	static constexpr kexes_bitset enabled_default()
-	{
-		return (1 << PQC_KEX_SIDHex);
-	}
-protected:
-	mode mode_;
-};
-
-class mac
-{
-public:
-	virtual ~mac() {}
-	virtual size_t size() const = 0;
-	virtual void compute(void *, const void *, size_t) = 0;
-	virtual void compute(void *, const std::string&);
-	virtual std::string compute(const std::string&);
-	virtual std::string compute(const void *, size_t);
-
-	virtual void key(const void *, size_t len) = 0;
-	virtual void key(const std::string&);
-
-	virtual operator enum pqc_mac() const = 0;
-
-	static std::shared_ptr<mac> create(enum pqc_mac);
-	static enum pqc_mac from_string (const char *, size_t);
-	static const char *to_string(enum pqc_mac);
-
-	static constexpr enum pqc_mac get_default() { return PQC_MAC_HMAC_SHA512; }
-	static constexpr macs_bitset enabled_default()
-	{
-		return (1 << PQC_MAC_HMAC_SHA256) | (1 << PQC_MAC_HMAC_SHA512);
-	}
-};
+class kex;
+class mac;
 
 struct handshake {
 	int version;
@@ -252,10 +201,6 @@ private:
 	enum pqc_kex use_kex_;
 };
 
-void random_bytes(char *, size_t);
-std::string random_string(size_t);
-Z random_z(size_t);
-Z random_z_below(const Z&);
 std::string base64_encode(const std::string&);
 std::string base64_decode(const std::string&);
 

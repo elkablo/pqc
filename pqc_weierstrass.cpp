@@ -35,7 +35,7 @@ WeierstrassSmallIsogeny WeierstrassCurve::small_isogeny (const WeierstrassPoint&
 #include <chrono>
 #include <vector>
 #include <functional>
-#include "pqc.hpp"
+#include <pqc_random.hpp>
 
 using namespace pqc;
 

@@ -1,6 +1,8 @@
 #ifndef PQC_CIPHER_HPP
 #define PQC_CIPHER_HPP
 
+#include <string>
+#include <memory>
 #include <pqc.hpp>
 
 namespace pqc
