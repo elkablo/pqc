@@ -5,6 +5,7 @@ OBJS = 				\
 	pqc.o			\
 	pqc_handshake.o		\
 	pqc_kex.o		\
+	pqc_kex_sidhex.o	\
 	pqc_mac.o		\
 	pqc_mac_hmac_sha.o	\
 	pqc_cipher.o		\
