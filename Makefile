@@ -1,4 +1,4 @@
-CXXFLAGS = -fPIC -ggdb -fno-exceptions -fno-stack-protector -march=native -std=c++14 -I.
+CXXFLAGS = -fPIC -fno-exceptions -fno-stack-protector -march=native -std=c++14 -I.
 LDFLAGS = -lgmpxx -lgmp -lnettle
 
 OBJS = 				\
@@ -19,7 +19,14 @@ OBJS = 				\
 
 WEIER_OBJS = pqc_weierstrass_main.o gf.o pqc_random.o pqc_chacha.o
 
-all: pqc weier
+all: optimize pqc weier
+debug: debugize pqc weier
+
+optimize:
+	$(eval CXXFLAGS += -O2)
+
+debugize:
+	$(eval CXXFLAGS += -ggdb)
 
 pqc: $(OBJS)
 	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS)
