@@ -1,3 +1,4 @@
+#include <cstring>
 #include <nettle/sha2.h>
 
 #include <pqc_cipher_chacha20.hpp>
