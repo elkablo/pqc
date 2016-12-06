@@ -1,5 +1,5 @@
-#ifndef PQC_GH_HPP
-#define PQC_GH_HPP
+#ifndef PQC_GF_HPP
+#define PQC_GF_HPP
 
 #include <functional>
 #include <algorithm>

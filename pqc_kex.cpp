@@ -3,6 +3,7 @@
 #include <pqc_kex.hpp>
 #include <pqc_random.hpp>
 #include <pqc_weierstrass.hpp>
+#include <pqc_base64.hpp>
 
 namespace pqc
 {

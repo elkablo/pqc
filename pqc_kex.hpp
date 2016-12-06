@@ -1,6 +1,7 @@
 #ifndef PQC_KEX_HPP
 #define PQC_KEX_HPP
 
+#include <cstddef>
 #include <string>
 #include <memory>
 #include <pqc.hpp>

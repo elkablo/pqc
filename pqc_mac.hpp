@@ -1,6 +1,7 @@
 #ifndef PQC_MAC_HPP
 #define PQC_MAC_HPP
 
+#include <cstddef>
 #include <string>
 #include <memory>
 #include <pqc.hpp>
