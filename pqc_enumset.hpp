@@ -123,11 +123,12 @@ public:
 				if (set_.isset((Enum) i))
 					break;
 			cur_ = (Enum) i;
+			return *this;
 		}
 		constexpr iterator operator++(int) const
 		{
 			iterator res(*this);
-			++res;
+			++*this;
 			return res;
 		}
 		constexpr bool operator==(const iterator& other) const
