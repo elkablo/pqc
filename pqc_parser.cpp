@@ -2,7 +2,8 @@
 #include <cstring>
 #include <cstdlib>
 
-#include "pqc.hpp"
+#include <pqc.hpp>
+#include <pqc_cipher.hpp>
 
 namespace pqc {
 

@@ -1,7 +1,7 @@
 #include <cstring>
 
-#include "weierstrass.cpp"
 #include "pqc.hpp"
+#include "pqc_weierstrass.hpp"
 
 namespace pqc
 {
