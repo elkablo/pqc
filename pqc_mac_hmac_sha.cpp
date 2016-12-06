@@ -1,6 +1,4 @@
 #include <cstring>
-#include <openssl/sha.h>
-
 #include <pqc_mac_hmac_sha.hpp>
 
 namespace pqc
@@ -13,18 +11,18 @@ hmac_sha256::operator enum pqc_mac() const
 
 size_t hmac_sha256::size() const
 {
-	return 32;
+	return SHA256_DIGEST_SIZE;
 }
 
 void hmac_sha256::key(const void *keyv, size_t len)
 {
 	uint64_t key[8];
 	if (len > 64) {
-		SHA256_CTX ctx;
+		sha256_ctx ctx;
 
-		SHA256_Init(&ctx);
-		SHA256_Update(&ctx, keyv, len);
-		SHA256_Final(reinterpret_cast<unsigned char *>(key), &ctx);
+		sha256_init(&ctx);
+		sha256_update(&ctx, len, reinterpret_cast<const uint8_t *>(keyv));
+		sha256_digest(&ctx, 32, reinterpret_cast<uint8_t *>(key));
 
 		len = 32;
 	} else {
@@ -41,19 +39,25 @@ void hmac_sha256::key(const void *keyv, size_t len)
 	}
 }
 
-void hmac_sha256::compute(void *digest, const void *input, size_t len)
+void hmac_sha256::init()
 {
-	SHA256_CTX ctx;
+	sha256_init(&context_);
+	sha256_update(&context_, 64, reinterpret_cast<const uint8_t *>(i_pad_));
+}
 
-	SHA256_Init(&ctx);
-	SHA256_Update(&ctx, reinterpret_cast<const void *>(i_pad_), 64);
-	SHA256_Update(&ctx, input, len);
-	SHA256_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
+void hmac_sha256::update(const void *input, size_t len)
+{
+	sha256_update(&context_, len, static_cast<const uint8_t *>(input));
+}
 
-	SHA256_Init(&ctx);
-	SHA256_Update(&ctx, reinterpret_cast<const void *>(o_pad_), 64);
-	SHA256_Update(&ctx, digest, 32);
-	SHA256_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
+void hmac_sha256::digest(void *digest)
+{
+	sha256_digest(&context_, 32, reinterpret_cast<uint8_t *>(digest));
+
+	sha256_init(&context_);
+	sha256_update(&context_, 64, reinterpret_cast<const uint8_t *>(o_pad_));
+	sha256_update(&context_, 32, reinterpret_cast<const uint8_t *>(digest));
+	sha256_digest(&context_, 32, reinterpret_cast<uint8_t *>(digest));
 }
 
 hmac_sha512::operator enum pqc_mac() const
@@ -63,18 +67,18 @@ hmac_sha512::operator enum pqc_mac() const
 
 size_t hmac_sha512::size() const
 {
-	return 64;
+	return SHA512_DIGEST_SIZE;
 }
 
 void hmac_sha512::key(const void *keyv, size_t len)
 {
 	uint64_t key[16];
 	if (len > 128) {
-		SHA512_CTX ctx;
+		sha512_ctx ctx;
 
-		SHA512_Init(&ctx);
-		SHA512_Update(&ctx, keyv, len);
-		SHA512_Final(reinterpret_cast<unsigned char *>(key), &ctx);
+		sha512_init(&ctx);
+		sha512_update(&ctx, len, reinterpret_cast<const uint8_t *>(keyv));
+		sha512_digest(&ctx, 64, reinterpret_cast<uint8_t *>(key));
 
 		len = 64;
 	} else {
@@ -91,19 +95,25 @@ void hmac_sha512::key(const void *keyv, size_t len)
 	}
 }
 
-void hmac_sha512::compute(void *digest, const void *input, size_t len)
+void hmac_sha512::init()
 {
-	SHA512_CTX ctx;
+	sha512_init(&context_);
+	sha512_update(&context_, 128, reinterpret_cast<const uint8_t *>(i_pad_));
+}
 
-	SHA512_Init(&ctx);
-	SHA512_Update(&ctx, reinterpret_cast<const void *>(i_pad_), 128);
-	SHA512_Update(&ctx, input, len);
-	SHA512_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
+void hmac_sha512::update(const void *input, size_t len)
+{
+	sha512_update(&context_, len, static_cast<const uint8_t *>(input));
+}
 
-	SHA512_Init(&ctx);
-	SHA512_Update(&ctx, reinterpret_cast<const void *>(o_pad_), 128);
-	SHA512_Update(&ctx, digest, 64);
-	SHA512_Final(reinterpret_cast<unsigned char *>(digest), &ctx);
+void hmac_sha512::digest(void *digest)
+{
+	sha512_digest(&context_, 64, reinterpret_cast<uint8_t *>(digest));
+
+	sha512_init(&context_);
+	sha512_update(&context_, 128, reinterpret_cast<const uint8_t *>(o_pad_));
+	sha512_update(&context_, 64, reinterpret_cast<const uint8_t *>(digest));
+	sha512_digest(&context_, 64, reinterpret_cast<uint8_t *>(digest));
 }
 
 }

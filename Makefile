@@ -1,5 +1,5 @@
 CXXFLAGS = -fPIC -ggdb -fno-exceptions -fno-stack-protector -march=native -std=c++14 -I.
-LDFLAGS = -lgmpxx -lgmp -lcrypto -lnettle
+LDFLAGS = -lgmpxx -lgmp -lnettle
 
 OBJS = 				\
 	pqc.o			\

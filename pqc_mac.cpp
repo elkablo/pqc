@@ -7,23 +7,40 @@
 namespace pqc
 {
 
-void mac::compute(void *digest, const std::string& input)
+void mac::update(const std::string& input)
 {
-	compute(digest, input.c_str(), input.size());
+	update(input.c_str(), input.size());
+}
+
+std::string mac::digest()
+{
+	std::string result(size(), '\0');
+	digest(&result[0]);
+	return result;
+}
+
+void mac::compute(void *result, const void *input, size_t len)
+{
+	init();
+	update(input, len);
+	digest(result);
+}
+
+void mac::compute(void *result, const std::string& input)
+{
+	compute(result, input.c_str(), input.size());
 }
 
 std::string mac::compute(const void *input, size_t len)
 {
-	std::string result(size(), 0);
-	compute(&result[0], input, len);
-	return result;
+	init();
+	update(input, len);
+	return digest();
 }
 
 std::string mac::compute(const std::string& input)
 {
-	std::string result(size(), 0);
-	compute(&result[0], input.c_str(), input.size());
-	return result;
+	return compute(input.c_str(), input.size());
 }
 
 void mac::key(const std::string& val)
