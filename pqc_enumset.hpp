@@ -91,7 +91,7 @@ public:
 		for (int i = 0; i < nwords-1; ++i)
 			if (words_[i])
 				return false;
-		return !(words_[nwords-1] << (bits_per_word - wordbit(last) + 1));
+		return !(words_[nwords-1] << (bits_per_word - wordbit(last) - 1));
 	}
 
 	constexpr operator bool() const
