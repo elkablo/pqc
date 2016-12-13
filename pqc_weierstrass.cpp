@@ -175,12 +175,12 @@ void test_weierstrass () {
 	}
 
 	if (true) {
-		measure("A without strategy", 10, [&gen_a, la, ea, &Pb, &Qb]() {
+		measure("A without strategy", 1, [&gen_a, la, ea, &Pb, &Qb]() {
 			WeierstrassIsogeny iso_a(gen_a, la, ea);
 			iso_a(Pb);
 			iso_a(Qb);
 		});
-		measure("B without strategy", 10, [&gen_b, lb, eb, &Pa, &Qa]() {
+		measure("B without strategy", 1, [&gen_b, lb, eb, &Pa, &Qa]() {
 			WeierstrassIsogeny iso_b(gen_b, lb, eb);
 			iso_b(Pa);
 			iso_b(Qa);

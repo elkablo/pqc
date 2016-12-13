@@ -7,6 +7,7 @@
 #include <pqc_mac.hpp>
 #include <pqc_random.hpp>
 #include <pqc_base64.hpp>
+#include <pqc_packet.hpp>
 
 namespace pqc
 {
@@ -357,23 +358,13 @@ void session::handle_incoming_data()
 
 void session::write_packet(const char *buf, size_t size)
 {
-	const size_t start = outgoing_.size();
-	const size_t hdr_size = 5;
+	data_packet pkt(outgoing_, mac_);
 
-	uint8_t hdr[hdr_size] = {
-		0x01, 0x00, 0x00,
-		(uint8_t) ((size >> 8) & 0xff),
-		(uint8_t) (size & 0xff)
-	};
+	pkt.set_data(buf, size);
+	pkt.sign();
+	pkt.encrypt(cipher_);
 
-	outgoing_.append(reinterpret_cast<char *>(hdr), 5);
-	outgoing_.append(buf, size);
-	outgoing_.append(mac_->compute(&outgoing_[start], hdr_size + size));
-
-	cipher_->encrypt(
-		reinterpret_cast<void *>(&outgoing_[start]),
-		hdr_size + size + mac_->size()
-	);
+	since_last_rekey_ += size;
 }
 
 void session::write(const char *buf, size_t size)
@@ -381,8 +372,7 @@ void session::write(const char *buf, size_t size)
 	if (state_ != state::NORMAL || !size)
 		return;
 
-	const size_t hdr_size = 5;
-	const size_t wrp_size = hdr_size + mac_->size();
+	const size_t wrp_size = data_packet::header_size + mac_->size();
 	const size_t pkt_count = (size + 65535) / 65536;
 
 	outgoing_.reserve(outgoing_.size() + size + pkt_count*wrp_size);

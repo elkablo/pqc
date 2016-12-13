@@ -3,6 +3,8 @@ LDFLAGS = -lgmpxx -lgmp -lnettle
 
 OBJS = 				\
 	pqc.o			\
+	pqc_packet.o		\
+	pqc_packet_reader.o	\
 	pqc_session.o		\
 	pqc_handshake.o		\
 	pqc_kex.o		\
