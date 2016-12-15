@@ -13,10 +13,8 @@ public:
 	cipher_chacha20();
 
 	size_t key_size() const;
-	size_t nonce_size() const;
 
 	void key(const void *, size_t);
-	void nonce(const void *, size_t);
 
 	void encrypt(void *, size_t);
 	void decrypt(void *, size_t);

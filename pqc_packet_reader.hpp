@@ -21,7 +21,7 @@ public:
 
 	void write_incoming(const char *, size_t);
 	bool is_error() const;
-	const packet *get_packet() const;
+	const packet *get_packet();
 	void pop_packet();
 
 private:

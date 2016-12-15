@@ -60,20 +60,7 @@ std::string cipher::decrypt(const std::string& input)
 
 void cipher::key(const std::string& val)
 {
-	if (val.size() < key_size()) {
-		// todo: warn
-	}
-
 	key(val.c_str(), val.size());
-}
-
-void cipher::nonce(const std::string& val)
-{
-	if (val.size() < nonce_size()) {
-		// todo: warn
-	}
-
-	nonce(val.c_str(), val.size());
 }
 
 std::shared_ptr<cipher> cipher::create(enum pqc_cipher type)

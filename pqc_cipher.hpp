@@ -15,12 +15,9 @@ public:
 	virtual ~cipher() {}
 
 	virtual size_t key_size() const = 0;
-	virtual size_t nonce_size() const = 0;
 
 	virtual void key(const void *, size_t) = 0;
-	virtual void nonce(const void *, size_t) = 0;
 	void key(const std::string&);
-	void nonce(const std::string&);
 
 	virtual void encrypt(void *, size_t) = 0;
 	virtual void decrypt(void *, size_t) = 0;

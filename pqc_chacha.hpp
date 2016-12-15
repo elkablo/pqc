@@ -9,9 +9,8 @@ namespace pqc
 class chacha {
 public:
 	chacha();
-	chacha(const void *, const void *);
+	chacha(const void *);
 	void set_key(const void *);
-	void set_nonce(const void *);
 	void generate(void *, size_t, bool x = false);
 	void crypt(void *out, size_t size) { generate(out, size, true); }
 private:

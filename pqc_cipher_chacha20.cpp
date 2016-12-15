@@ -1,5 +1,4 @@
 #include <cstring>
-#include <nettle/sha2.h>
 
 #include <pqc_cipher_chacha20.hpp>
 
@@ -16,33 +15,22 @@ cipher_chacha20::cipher_chacha20()
 
 size_t cipher_chacha20::key_size() const
 {
-	return 32;
-}
-
-size_t cipher_chacha20::nonce_size() const
-{
-	return 8;
+	return 40;
 }
 
 void cipher_chacha20::key(const void *keyv, size_t size)
 {
-	if (size > 32) {
-		char key[32];
-		sha256_ctx ctx;
+	char key[40];
 
-		sha256_init(&ctx);
-		sha256_update(&ctx, size, static_cast<const uint8_t *>(keyv));
-		sha256_digest(&ctx, 32, reinterpret_cast<uint8_t *>(key));
+	if (size > 40)
+		size = 40;
 
-		chacha_.set_key(key);
-	} else {
-		chacha_.set_key(keyv);
-	}
-}
+	::memcpy(key, keyv, size);
 
-void cipher_chacha20::nonce(const void *noncev, size_t size)
-{
-	chacha_.set_nonce(noncev);
+	if (size < 40)
+		::memset(&key[size], 0, 40 - size);
+
+	chacha_.set_key(key);
 }
 
 void cipher_chacha20::encrypt(void *data, size_t len)

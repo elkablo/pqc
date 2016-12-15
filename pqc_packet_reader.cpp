@@ -70,17 +70,17 @@ bool packet_reader::decrypt_packet()
 		case packet::type::CLOSE:
 			need_ += close_packet::header_size;
 			if (decrypted_ >= close_packet::header_size)
-				packet_ = std::make_shared<close_packet>(incoming_, mac_);
+				packet_ = std::make_shared<close_packet>(incoming_, 0, mac_);
 			break;
 		case packet::type::DATA:
 			need_ += data_packet::header_size;
 			if (decrypted_ >= data_packet::header_size)
-				packet_ = std::make_shared<data_packet>(incoming_, mac_);
+				packet_ = std::make_shared<data_packet>(incoming_, 0, mac_);
 			break;
 		case packet::type::REKEY:
 			need_ += rekey_packet::header_size;
 			if (decrypted_ >= rekey_packet::header_size)
-				packet_ = std::make_shared<rekey_packet>(incoming_, mac_);
+				packet_ = std::make_shared<rekey_packet>(incoming_, 0, mac_);
 			break;
 		default:
 			error_ = true;
@@ -97,8 +97,9 @@ bool packet_reader::is_error() const
 	return error_;
 }
 
-const packet *packet_reader::get_packet() const
+const packet *packet_reader::get_packet()
 {
+	decrypt_packet();
 	return packet_complete_ ? packet_.get() : nullptr;
 }
 

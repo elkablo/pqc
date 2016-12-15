@@ -16,7 +16,6 @@ void random_bytes(char *out, size_t size)
 		unsigned char key[40];
 		syscall(SYS_getrandom, key, 40, 0);
 		chacha.set_key(key);
-		chacha.set_nonce(key + 32);
 		initialized = true;
 	}
 

@@ -12,21 +12,16 @@ chacha::chacha() :
 {
 }
 
-chacha::chacha(const void *key, const void *nonce) :
+chacha::chacha(const void *key) :
 	buffer_fill_(0)
 {
 	set_key(key);
-	set_nonce(nonce);
 }
 
 void chacha::set_key(const void *key)
 {
 	chacha_set_key(&context_, static_cast<const uint8_t *>(key));
-}
-
-void chacha::set_nonce(const void *nonce)
-{
-	chacha_set_nonce(&context_, static_cast<const uint8_t *>(nonce));
+	chacha_set_nonce(&context_, &static_cast<const uint8_t *>(key)[32]);
 }
 
 static inline void mem_xor_or_copy(void *d, const void *s, size_t l, bool x) {

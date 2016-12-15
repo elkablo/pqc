@@ -16,10 +16,10 @@ session::session() :
 	error_(error::NONE),
 	state_(state::INIT),
 	mode_(mode::NONE),
-	remote_closed_(false),
+	peer_closed_(false),
 	rekey_after_(1024*1024*1024),
 	since_last_rekey_(0),
-	encrypted_need_size_(0),
+	since_last_peer_rekey_(0),
 	enabled_ciphers_(cipher::enabled_default()),
 	enabled_auths_(),
 	enabled_macs_(mac::enabled_default()),
@@ -133,227 +133,237 @@ bool session::is_closed() const
 	return state_ == state::CLOSED;
 }
 
+bool session::is_peer_closed() const
+{
+	return peer_closed_;
+}
+
 void session::set_error(error err)
 {
 	error_ = err;
 	state_ = state::ERROR;
 }
 
+size_t session::since_last_rekey() const
+{
+	return since_last_rekey_;
+}
+
+size_t session::since_last_peer_rekey() const
+{
+	return since_last_peer_rekey_;
+}
+
+void session::handle_handshake(const char *buf, size_t size)
+{
+	incoming_handshake_.append(buf, size);
+
+	while (incoming_handshake_.size()) {
+		if (state_ == state::INIT) {
+			bool has_nn = incoming_handshake_.find("\n\n") != std::string::npos;
+			if (!has_nn && incoming_handshake_.size() > 4096)
+				return set_error(error::BAD_HANDSHAKE);
+
+			if (!has_nn)
+				return;
+
+			const char *ptr;
+			handshake handshake;
+
+			ptr = handshake.parse_init(incoming_handshake_.c_str());
+			if (!ptr)
+				return set_error(error::BAD_HANDSHAKE);
+			incoming_handshake_.erase(0, ptr - incoming_handshake_.c_str());
+
+			cipherset available_ciphers = handshake.supported_ciphers & enabled_ciphers_;
+			macset available_macs = handshake.supported_macs & enabled_macs_;
+
+			if (handshake.version != 1
+				|| handshake.kex == PQC_KEX_UNKNOWN
+				|| (mode_ == mode::CLIENT && use_kex_ != handshake.kex)
+				|| !is_kex_enabled(handshake.kex)
+				|| !available_ciphers
+				|| !available_macs
+				|| !handshake.encrypted_secret
+			)
+				return set_error(error::BAD_HANDSHAKE);
+
+			cipher_ = cipher::create(*available_ciphers.begin());
+			mac_ = mac::create(*available_macs.begin());
+
+			std::string encrypted_secret;
+
+			if (mode_ == mode::SERVER) {
+				use_kex_ = handshake.kex;
+				kex_ = kex::create(use_kex_, kex::mode::SERVER);
+				encrypted_secret = kex_->init();
+			}
+
+			session_key_ = kex_->fini(handshake.encrypted_secret);
+			if (!session_key_.size())
+				return set_error(error::BAD_HANDSHAKE);
+
+			std::string nonce(random_string(min_nonce_size));
+			mac_->key(nonce);
+
+			ephemeral_key_ = mac_->compute(session_key_);
+
+			cipher_->key(ephemeral_key_);
+
+			if (mode_ == mode::SERVER) {
+				send_handshake_init(encrypted_secret);
+			}
+			send_handshake_fini(nonce);
+
+			state_ = state::HANDSHAKING;
+		} else if (state_ == state::HANDSHAKING) {
+			bool has_nn = incoming_handshake_.find("\n\n") != std::string::npos;
+			if (!has_nn && incoming_handshake_.size() > 4096)
+				return set_error(error::BAD_HANDSHAKE);
+
+			if (!has_nn)
+				return;
+
+			const char *ptr;
+			handshake handshake;
+
+			ptr = handshake.parse_fini(incoming_handshake_.c_str());
+			if (!ptr)
+				return set_error(error::BAD_HANDSHAKE);
+
+			incoming_handshake_.erase(0, ptr - incoming_handshake_.c_str());
+
+			if (handshake.cipher == PQC_CIPHER_UNKNOWN
+				|| !is_cipher_enabled(handshake.cipher)
+				|| handshake.mac == PQC_MAC_UNKNOWN
+				|| !is_mac_enabled(handshake.mac)
+				|| !handshake.nonce
+			)
+				return set_error(error::BAD_HANDSHAKE);
+
+			peer_mac_ = mac::create(handshake.mac);
+			peer_cipher_ = cipher::create(handshake.cipher);
+
+			std::string peer_nonce = base64_decode(handshake.nonce);
+
+			if (peer_nonce.size() < min_nonce_size)
+				return set_error(error::BAD_HANDSHAKE);
+
+			peer_mac_->key(peer_nonce);
+
+			peer_ephemeral_key_ = peer_mac_->compute(session_key_);
+
+			peer_cipher_->key(peer_ephemeral_key_);
+
+			packet_reader_.set_mac(peer_mac_);
+			packet_reader_.set_cipher(peer_cipher_);
+
+			if (outgoing_.size() > 0)
+				state_ = state::HANDSHAKING_TILL_SENT;
+			else
+				state_ = state::NORMAL;
+		} else if (state_ == state::NORMAL) {
+			handle_incoming(incoming_handshake_.c_str(), incoming_handshake_.size());
+			incoming_handshake_.erase();
+		} else {
+			// TODO: assert(false);
+			break;
+		}
+	}
+}
+
+void session::handle_incoming_close()
+{
+	peer_closed_ = true;
+	if (state_ == state::CLOSING) {
+		state_ = state::CLOSED;
+		std::cout << "\tremote closed - all closed\n";
+	} else {
+		std::cout << "\tremote closed\n";
+	}
+}
+
+void session::handle_incoming_data(const char *buf, size_t size)
+{
+	incoming_.append(buf, size);
+	since_last_peer_rekey_ += size;
+}
+
+void session::handle_incoming_rekey(const char *buf, size_t size)
+{
+	if (size < min_nonce_size)
+		return set_error(error::BAD_REKEY);
+
+	std::cout << "\tREKEY peer\n";
+	peer_mac_->key(buf, size);
+	peer_ephemeral_key_ = peer_mac_->compute(peer_ephemeral_key_);
+	peer_cipher_->key(peer_ephemeral_key_);
+
+	since_last_peer_rekey_ = 0;
+}
+
+void session::handle_incoming(const char *buf, size_t size)
+{
+	packet_reader_.write_incoming(buf, size);
+
+	for (const packet *pkt = packet_reader_.get_packet();
+	     pkt != nullptr;
+	     packet_reader_.pop_packet(), pkt = packet_reader_.get_packet()) {
+
+		if (!pkt->verify())
+			return set_error(error::BAD_MAC);
+
+		switch (pkt->get_type()) {
+		case packet::type::CLOSE:
+			handle_incoming_close();
+			break;
+		case packet::type::DATA:
+			handle_incoming_data(pkt->get_data(), pkt->get_data_size());
+			break;
+		case packet::type::REKEY:
+			handle_incoming_rekey(pkt->get_data(), pkt->get_data_size());
+			break;
+		}
+
+		if (is_error())
+			return;
+	}
+
+	if (packet_reader_.is_error())
+		set_error(error::BAD_PACKET);
+}
+
 void session::write_incoming(const char *buf, size_t size)
 {
-	encrypted_incoming_.append(buf, size);
+	if (peer_closed_)
+		set_error(error::ALREADY_CLOSED);
 
-	while (encrypted_incoming_.size()) {
-	if (state_ == state::INIT) {
-		bool has_nn = encrypted_incoming_.find("\n\n") != std::string::npos;
-		if (!has_nn && encrypted_incoming_.size() > 4096)
-			return set_error(error::HANDSHAKE);
+	if (state_ == state::ERROR)
+		return;
 
-		if (!has_nn)
-			return;
-
-		const char *ptr;
-		handshake handshake;
-
-		ptr = handshake.parse_init(encrypted_incoming_.c_str());
-		if (!ptr)
-			return set_error(error::HANDSHAKE);
-		encrypted_incoming_.erase(0, ptr - encrypted_incoming_.c_str());
-
-		cipherset available_ciphers = handshake.supported_ciphers & enabled_ciphers_;
-		macset available_macs = handshake.supported_macs & enabled_macs_;
-
-		if (handshake.version != 1
-			|| handshake.kex == PQC_KEX_UNKNOWN
-			|| (mode_ == mode::CLIENT && use_kex_ != handshake.kex)
-			|| !is_kex_enabled(handshake.kex)
-			|| !available_ciphers
-			|| !available_macs
-			|| !handshake.encrypted_secret
-		)
-			return set_error(error::HANDSHAKE);
-
-		cipher_ = cipher::create(*available_ciphers.begin());
-		mac_ = mac::create(*available_macs.begin());
-
-		std::string encrypted_secret;
-
-		if (mode_ == mode::SERVER) {
-			use_kex_ = handshake.kex;
-			kex_ = kex::create(use_kex_, kex::mode::SERVER);
-			encrypted_secret = kex_->init();
-		}
-
-		session_key_ = kex_->fini(handshake.encrypted_secret);
-		if (!session_key_.size())
-			return set_error(error::HANDSHAKE);
-
-		std::string nonce(random_string(std::max((size_t) 32, cipher_->nonce_size())));
-		mac_->key(nonce);
-
-		ephemeral_key_ = mac_->compute(session_key_);
-
-		cipher_->nonce(nonce);
-		cipher_->key(ephemeral_key_);
-
-		if (mode_ == mode::SERVER) {
-			send_handshake_init(encrypted_secret);
-		}
-		send_handshake_fini(nonce);
-
-		state_ = state::HANDSHAKING;
-	} else if (state_ == state::HANDSHAKING) {
-		bool has_nn = encrypted_incoming_.find("\n\n") != std::string::npos;
-		if (!has_nn && encrypted_incoming_.size() > 4096)
-			return set_error(error::HANDSHAKE);
-
-		if (!has_nn)
-			return;
-
-		const char *ptr;
-		handshake handshake;
-
-		ptr = handshake.parse_fini(encrypted_incoming_.c_str());
-		if (!ptr)
-			return set_error(error::HANDSHAKE);
-
-		encrypted_incoming_.erase(0, ptr - encrypted_incoming_.c_str());
-
-		if (handshake.cipher == PQC_CIPHER_UNKNOWN
-			|| !is_cipher_enabled(handshake.cipher)
-			|| handshake.mac == PQC_MAC_UNKNOWN
-			|| !is_mac_enabled(handshake.mac)
-			|| !handshake.nonce
-		)
-			return set_error(error::HANDSHAKE);
-
-		peer_mac_ = mac::create(handshake.mac);
-		peer_cipher_ = cipher::create(handshake.cipher);
-
-		std::string peer_nonce = base64_decode(handshake.nonce);
-
-		if (peer_nonce.size() < std::max((size_t) 32, peer_cipher_->nonce_size()))
-			return set_error(error::HANDSHAKE);
-
-		peer_mac_->key(peer_nonce);
-
-		peer_ephemeral_key_ = peer_mac_->compute(session_key_);
-
-		peer_cipher_->nonce(peer_nonce);
-		peer_cipher_->key(peer_ephemeral_key_);
-
-		if (outgoing_.size() > 0)
-			state_ = state::HANDSHAKING_TILL_SENT;
-		else
-			state_ = state::NORMAL;
-	} else if (state_ == state::NORMAL) {
-		return handle_incoming_data();
-	} else {
-		break;
-	}
-	}
+	if (state_ < state::NORMAL)
+		handle_handshake(buf, size);
+	else
+		handle_incoming(buf, size);
 }
 
-void session::decrypt_raw(size_t size)
+void session::do_rekey()
 {
-	size_t decrypted_size = decrypted_incoming_.size();
+	std::string nonce(random_string(min_nonce_size));
 
-	if (!size || encrypted_incoming_.size() < size)
-		size = encrypted_incoming_.size();
+	rekey_packet pkt(outgoing_, mac_);
 
-	decrypted_incoming_.resize(decrypted_size + size);
-	peer_cipher_->decrypt(reinterpret_cast<void *>(&decrypted_incoming_[decrypted_size]), size, &encrypted_incoming_[0], size);
-	encrypted_incoming_.erase(0, size);
-}
+	pkt.set_data(nonce.c_str(), nonce.size());
+	pkt.sign();
+	pkt.encrypt(cipher_);
 
-bool session::decrypt_needed()
-{
-	if (encrypted_incoming_.size() < encrypted_need_size_) {
-		encrypted_need_size_ -= encrypted_incoming_.size();
-		decrypt_raw();
-		if (encrypted_need_size_)
-			return false;
-	} else {
-		decrypt_raw(encrypted_incoming_.size());
-		encrypted_need_size_ = 0;
-	}
-	return true;
-}
+	mac_->key(nonce);
+	ephemeral_key_ = mac_->compute(ephemeral_key_);
+	cipher_->key(ephemeral_key_);
 
-session::packettype session::decrypt_next_packet(std::string& data)
-{
-	const size_t min_size = 1 + peer_mac_->size();
-	size_t need = 0, size = 0;
+	std::cout << "\tREKEY\n";
 
-	if (decrypted_incoming_.size() < min_size)
-		encrypted_need_size_ = min_size;
-
-	if (!decrypt_needed())
-		return packettype::MORE;
-
-	const uint8_t *pkt = reinterpret_cast<const uint8_t *>(&decrypted_incoming_[0]);
-
-	if (pkt[0] == packettype::DATA) {
-		if (decrypted_incoming_.size() >= 5)
-			size = (pkt[1] << 24) | (pkt[2] << 16) | (pkt[3] << 8) | pkt[4];
-		need = 5 + size + peer_mac_->size();
-	} else if (pkt[0] == packettype::REKEY) {
-		if (decrypted_incoming_.size() >= 2)
-			size = pkt[1];
-		need = 2 + size + peer_mac_->size();
-	} else if (pkt[0] == packettype::CLOSE) {
-		need = min_size;
-	} else {
-		return packettype::ERROR;
-	}
-
-	encrypted_need_size_ = need - decrypted_incoming_.size();
-	if (!decrypt_needed())
-		return packettype::MORE;
-
-	if (decrypted_incoming_.size() >= need) {
-		std::string peer_hash = decrypted_incoming_.substr(need - peer_mac_->size(), peer_mac_->size());
-		std::string hash = peer_mac_->compute(pkt, need - peer_mac_->size());
-
-		if (peer_hash != hash)
-			return packettype::ERROR;
-
-		if (pkt[0] == packettype::DATA)
-			data = decrypted_incoming_.substr(5, size);
-		else if (pkt[0] == packettype::REKEY)
-			data = decrypted_incoming_.substr(2, size);
-
-		decrypted_incoming_.erase(0, encrypted_need_size_);
-		return static_cast<packettype>(pkt[0]);
-	} else {
-		encrypted_need_size_ = need - decrypted_incoming_.size();
-		return packettype::MORE;
-	}
-}
-
-void session::handle_incoming_data()
-{
-	while (encrypted_incoming_.size()) {
-		std::string data;
-
-		switch (decrypt_next_packet(data)) {
-		case packettype::CLOSE:
-			std::cout << "\tClose\n";
-			break;
-		case packettype::DATA:
-			std::cout << "\tData " << data << "\n";
-			incoming_ += data;
-			break;
-		case packettype::REKEY:
-			std::cout << "\tRekey\n";
-			break;
-		case packettype::MORE:
-			return;
-		default:
-			std::cout << "\tERROR msg type\n";
-			return set_error(error::OTHER);
-		}
-	}
+	since_last_rekey_ = 0;
 }
 
 void session::write_packet(const char *buf, size_t size)
@@ -365,6 +375,9 @@ void session::write_packet(const char *buf, size_t size)
 	pkt.encrypt(cipher_);
 
 	since_last_rekey_ += size;
+
+	if (since_last_rekey_ > rekey_after_)
+		do_rekey();
 }
 
 void session::write(const char *buf, size_t size)
@@ -388,11 +401,8 @@ void session::write(const char *buf, size_t size)
 
 ssize_t session::read(char *buf, size_t size)
 {
-	if (state_ != state::NORMAL && state_ != state::CLOSING)
+	if (state_ < state::NORMAL || !incoming_.size())
 		return -1;
-
-	if (!incoming_.size())
-		return -2;
 
 	if (incoming_.size() < size)
 		size = incoming_.size();
@@ -405,11 +415,17 @@ ssize_t session::read(char *buf, size_t size)
 ssize_t session::read_outgoing(char *buf, size_t size)
 {
 	ssize_t res = std::min(size, outgoing_.size());
-	memcpy(buf, outgoing_.c_str(), res);
+	::memcpy(buf, outgoing_.c_str(), res);
 	outgoing_.erase(0, res);
 
-	if (state_ == state::HANDSHAKING_TILL_SENT && outgoing_.size() == 0)
-		state_ = state::NORMAL;
+	if (outgoing_.size() == 0) {
+		if (state_ == state::HANDSHAKING_TILL_SENT)
+			state_ = state::NORMAL;
+		else if (state_ == state::CLOSING)
+			state_ = state::CLOSED;
+		else
+			;
+	}
 
 	return res;
 }
@@ -460,11 +476,17 @@ void session::send_handshake_fini(const std::string& nonce)
 
 void session::start_server()
 {
+	if (mode_ != mode::NONE)
+		return;
+
 	mode_ = mode::SERVER;
 }
 
 void session::start_client(const char *server_name)
 {
+	if (mode_ != mode::NONE)
+		return;
+
 	mode_ = mode::CLIENT;
 	kex_ = kex::create(use_kex_, kex::mode::CLIENT);
 
@@ -474,6 +496,16 @@ void session::start_client(const char *server_name)
 
 void session::close()
 {
+	if (state_ != state::NORMAL)
+		return;
+
+	close_packet pkt(outgoing_, mac_);
+
+	pkt.set_data();
+	pkt.sign();
+	pkt.encrypt(cipher_);
+
+	state_ = state::CLOSING;
 }
 
 }

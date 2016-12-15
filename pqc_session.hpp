@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <pqc_enumset.hpp>
+#include <pqc_packet_reader.hpp>
 
 namespace pqc
 {
@@ -15,6 +16,8 @@ class mac;
 
 class session
 {
+	static const size_t min_nonce_size = 32;
+
 	enum class state {
 		ERROR,
 		INIT,
@@ -29,19 +32,14 @@ class session
 		SERVER,
 		CLIENT
 	};
-	enum packettype {
-		CLOSE = 0,
-		DATA = 1,
-		REKEY = 2,
-		MORE = 126,
-		ERROR = 127
-	};
 public:
 	enum class error {
 		NONE = 0,
-		INIT,
-		HANDSHAKE,
-		OTHER
+		BAD_HANDSHAKE,
+		BAD_PACKET,
+		BAD_MAC,
+		BAD_REKEY,
+		ALREADY_CLOSED
 	};
 
 	typedef std::function<const char *(const char *)> auth_callback_t;
@@ -69,13 +67,16 @@ public:
 	void set_rekey_after(size_t);
 	size_t get_rekey_after() const;
 
+	size_t since_last_rekey() const;
+	size_t since_last_peer_rekey() const;
+
 	bool is_error() const;
 	error error_code() const;
 	size_t bytes_available() const;
 	size_t bytes_outgoing_available() const;
 	bool is_handshaken() const;
 	bool is_closed() const;
-	bool is_remote_closed() const;
+	bool is_peer_closed() const;
 	void write_incoming(const char *, size_t);
 	void write(const char *, size_t);
 	ssize_t read(char *, size_t);
@@ -87,27 +88,27 @@ public:
 	void close();
 
 private:
+	void set_error(error);
+	void do_rekey();
 	void write_packet(const char *, size_t);
 	void send_handshake_init(const std::string&);
 	void send_handshake_fini(const std::string&);
-	void set_error(error);
-	void decrypt_raw(size_t size = 0);
-	bool decrypt_needed();
-	packettype decrypt_next_packet(std::string&);
-	void handle_incoming_data();
+	void handle_handshake(const char *, size_t);
+	void handle_incoming_close();
+	void handle_incoming_data(const char *, size_t);
+	void handle_incoming_rekey(const char *, size_t);
+	void handle_incoming(const char *, size_t);
 
 	error error_;
 	state state_;
 	mode mode_;
-	bool remote_closed_;
-	size_t rekey_after_, since_last_rekey_;
-	std::string incoming_, outgoing_, encrypted_incoming_;
+	bool peer_closed_;
+	size_t rekey_after_, since_last_rekey_, since_last_peer_rekey_;
+	std::string incoming_, outgoing_, incoming_handshake_;
 
-	std::string decrypted_incoming_;
-	size_t encrypted_need_size_;
+	packet_reader packet_reader_;
 
 	std::string session_key_, ephemeral_key_, peer_ephemeral_key_;
-	//std::string nonce_, peer_nonce_;
 
 	std::string server_name_;
 	std::string server_auth_, auth_;
