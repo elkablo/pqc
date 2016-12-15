@@ -62,6 +62,143 @@ void measure(const std::string& str, int repeats, std::function<void()> f) {
 	std::cout << str << " took " << duration_cast<milliseconds>(end - start).count() << "ms\n";
 }
 
+void generate_mn(Z& m, Z& n, Z& le, int l)
+{
+	do {
+		m = random_z_below(le);
+		n = random_z_below(le);
+	} while ((m % l) == 0 && (n % l) == 0);
+}
+
+void generate_mn_alternative(Z& m, Z& n, Z& le, int l)
+{
+	m = random_z_below(le/l)*l;
+	n = 1;
+}
+
+void measure_time(
+	std::function<void(Z&, Z&, Z&, int)> mn_generator,
+	WeierstrassPoint& Pa,
+	WeierstrassPoint& Qa,
+	WeierstrassPoint& Pb,
+	WeierstrassPoint& Qb,
+	Z& lea,
+	int la,
+	int ea,
+	Z& leb,
+	int lb,
+	int eb,
+	std::vector<int>& strategy
+)
+{
+	Z ma, na, mb, nb;
+
+	mn_generator(ma, na, lea, la);
+	mn_generator(mb, nb, leb, lb);
+
+	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
+
+	measure("A without strategy", 1, [&gen_a, la, ea, &Pb, &Qb]() {
+		WeierstrassIsogeny iso_a(gen_a, la, ea);
+		iso_a(Pb);
+		iso_a(Qb);
+	});
+	measure("B without strategy", 1, [&gen_b, lb, eb, &Pa, &Qa]() {
+		WeierstrassIsogeny iso_b(gen_b, lb, eb);
+		iso_b(Pa);
+		iso_b(Qa);
+	});
+	measure("A with strategy", 10, [&gen_a, la, ea, &Pb, &Qb, &strategy]() {
+		WeierstrassIsogeny iso_a(gen_a, la, ea, strategy);
+		iso_a(Pb);
+		iso_a(Qb);
+	});
+	measure("B with strategy", 10, [&gen_b, lb, eb, &Pa, &Qa, &strategy]() {
+		WeierstrassIsogeny iso_b(gen_b, lb, eb, strategy);
+		iso_b(Pa);
+		iso_b(Qa);
+	});
+}
+
+void check_order(
+	std::function<void(Z&, Z&, Z&, int)> mn_generator,
+	WeierstrassPoint& Pa,
+	WeierstrassPoint& Qa,
+	WeierstrassPoint& Pb,
+	WeierstrassPoint& Qb,
+	Z& lea,
+	int la,
+	int ea,
+	Z& leb,
+	int lb,
+	int eb
+)
+{
+	Z ma, na, mb, nb;
+
+	mn_generator(ma, na, lea, la);
+	mn_generator(mb, nb, leb, lb);
+
+	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
+
+	Z base(1), mul(la);
+	for (int i = 0; i <= ea; ++i) {
+		if ((base * Pa).is_identity())
+			std::cout << "Pa is of order " << mul << "^" << i << "\n";
+		if ((base * Qa).is_identity())
+			std::cout << "Qa is of order " << mul << "^" << i << "\n";
+		if ((base * gen_a).is_identity())
+			std::cout << "gen_a is of order " << mul << "^" << i << "\n";
+		base *= mul;
+	}
+
+	base = 1;
+	mul = lb;
+	for (int i = 0; i <= eb; ++i) {
+		if ((base * Pb).is_identity())
+			std::cout << "Pb is of order " << mul << "^" << i << "\n";
+		if ((base * Qb).is_identity())
+			std::cout << "Qb is of order " << mul << "^" << i << "\n";
+		if ((base * gen_b).is_identity())
+			std::cout << "gen_b is of order " << mul << "^" << i << "\n";
+		base *= mul;
+	}
+}
+
+bool compare_j_invariants(
+	std::function<void(Z&, Z&, Z&, int)> mn_generator,
+	WeierstrassPoint& Pa,
+	WeierstrassPoint& Qa,
+	WeierstrassPoint& Pb,
+	WeierstrassPoint& Qb,
+	Z& lea,
+	int la,
+	int ea,
+	Z& leb,
+	int lb,
+	int eb,
+	std::vector<int>& strategy
+)
+{
+	Z ma, na, mb, nb;
+
+	mn_generator(ma, na, lea, la);
+	mn_generator(mb, nb, leb, lb);
+
+	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
+
+	WeierstrassIsogeny iso_a(gen_a, la, ea, strategy);
+	WeierstrassIsogeny iso_b(gen_b, lb, eb, strategy);
+
+	WeierstrassPoint gen_ab = ma*iso_b(Pa) + na*iso_b(Qa);
+	WeierstrassPoint gen_ba = mb*iso_a(Pb) + nb*iso_a(Qb);
+
+	WeierstrassIsogeny iso_ab(gen_ab, la, ea, strategy);
+	WeierstrassIsogeny iso_ba(gen_ba, lb, eb, strategy);
+
+	return iso_ab.image()->j_invariant() == iso_ba.image()->j_invariant();
+}
+
 void test_weierstrass () {
 	std::vector<int> strategy{
 		0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
@@ -92,23 +229,13 @@ void test_weierstrass () {
 		177, 177, 178, 178, 179, 179, 180, 180, 181, 181, 182, 182,
 		183, 183, 184, 184, 185, 185, 186};
 
-/*
-	Z p("3700444163740528325594401040305817124863");
-	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
-	WeierstrassPoint
-		Pa(E,
-		   GF(p, "2524646701852396349308425328218203569693", "2374093068336250774107936421407893885897"),
-		   GF(p, "1309099413211767078055232768460483417201", "1944869260414574206229153243510104781725")
-		),
-		Pb(E,
-		   GF(p, "1747407329595165241335131647929866065215", "1556716033657530876728525059284431761206"),
-		   GF(p, "1975912874247458572654720717155755005566", "3456956202852028835529419995475915388483")
-		);
-	WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
-
-	Z ma("2575042839726612324"), na("8801426132580632841"), mb("4558164392438856871"), nb("20473135767366569910");
-*/
+	// p = 2^372 * 3*239 - 1
 	Z p("10354717741769305252977768237866805321427389645549071170116189679054678940682478846502882896561066713624553211618840202385203911976522554393044160468771151816976706840078913334358399730952774926980235086850991501872665651576831");
+
+	// Pa = [3^239] (11, sqrt(11³ + 11))
+	// Qa = ψ(Pa)
+	// Pb = [2^372] (6, sqrt(6³ + 6))
+	// Qb = ψ(Pb)
 
 	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
 	WeierstrassPoint Pa(E, GF(p, 11), GF(p, Z(11*11*11+11)).sqrt());
@@ -120,124 +247,42 @@ void test_weierstrass () {
 	Pb *= lea;
 	WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
 
-	Z ma, na, mb, nb;
-
-	if (true) {
-		ma = pqc::random_z_below(lea/2)*la;
-		mb = pqc::random_z_below(leb/2)*lb;
-		na = 1;
-		nb = 1;
-	} else {
-		do {
-			ma = pqc::random_z_below(lea);
-			na = pqc::random_z_below(lea);
-		} while ((ma % la) == 0 && (na % la) == 0);
-		do {
-			mb = pqc::random_z_below(leb);
-			nb = pqc::random_z_below(leb);
-		} while ((mb % lb) == 0 && (nb % lb) == 0);
-	}
-	
-	WeierstrassPoint gen_a = ma*Pa + na*Qa, gen_b = mb*Pb + nb*Qb;
-
+	// check order
 	if (false) {
-		Z base(1), mul(la);
-		for (int i = 0; i <= ea; ++i) {
-			if ((base * Pa).is_identity()) {
-				std::cout << "Pa is of order " << mul << "^" << i << "\n";
-			}
-			if ((base * Qa).is_identity()) {
-				std::cout << "Qa is of order " << mul << "^" << i << "\n";
-			}
-			if ((base * gen_a).is_identity()) {
-				std::cout << "gen_a is of order " << mul << "^" << i << "\n";
-			}
-			base *= mul;
-		}
-
-		base = 1;
-		mul = lb;
-		for (int i = 0; i <= eb; ++i) {
-			if ((base * Pb).is_identity()) {
-				std::cout << "Pb is of order " << mul << "^" << i << "\n";
-			}
-			if ((base * Qb).is_identity()) {
-				std::cout << "Qb is of order " << mul << "^" << i << "\n";
-			}
-			if ((base * gen_b).is_identity()) {
-				std::cout << "gen_b is of order " << mul << "^" << i << "\n";
-			}
-			base *= mul;
-		}
-
+		check_order(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb);
+		check_order(generate_mn_alternative, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb);
 		return;
 	}
+
+	// measure time
+	if (false)
+		return measure_time(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy);
 
 	if (true) {
-		measure("A without strategy", 1, [&gen_a, la, ea, &Pb, &Qb]() {
-			WeierstrassIsogeny iso_a(gen_a, la, ea);
-			iso_a(Pb);
-			iso_a(Qb);
-		});
-		measure("B without strategy", 1, [&gen_b, lb, eb, &Pa, &Qa]() {
-			WeierstrassIsogeny iso_b(gen_b, lb, eb);
-			iso_b(Pa);
-			iso_b(Qa);
-		});
-		measure("A with strategy", 10, [&gen_a, la, ea, &Pb, &Qb, &strategy]() {
-			WeierstrassIsogeny iso_a(gen_a, la, ea, strategy);
-			iso_a(Pb);
-			iso_a(Qb);
-		});
-		measure("B with strategy", 10, [&gen_b, lb, eb, &Pa, &Qa, &strategy]() {
-			WeierstrassIsogeny iso_b(gen_b, lb, eb, strategy);
-			iso_b(Pa);
-			iso_b(Qa);
-		});
-		return;
+		int tries = 100, generate_mn_success = 0, generate_mn_alternative_success = 0;
+
+		std::cout << "Comparing j-invariants\n";
+
+		for (int i = 0; i < tries; ++i) {
+			std::cout << "Round 1: ";
+			if (compare_j_invariants(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy)) {
+				++generate_mn_success;
+				std::cout << "T ";
+			} else {
+				std::cout << "F ";
+			}
+			if (compare_j_invariants(generate_mn_alternative, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy)) {
+				++generate_mn_alternative_success;
+				std::cout << "T\n";
+			} else {
+				std::cout << "F\n";
+			}
+		}
+
+		std::cout << "j-invariants were same for both sides of key exchange:\n";
+		std::cout << "\t" << generate_mn_success << " times of " << tries << " using default m,n-generator\n";
+		std::cout << "\t" << generate_mn_alternative_success << " times of " << tries << " using alternative m,n-generator\n";
 	}
-
-	WeierstrassIsogeny iso_a(gen_a, la, ea, strategy);
-	WeierstrassIsogeny iso_b(gen_b, lb, eb, strategy);
-
-	std::cout << "\n";
-	std::cout << "E_A: " << *iso_a.image() << "\n";
-	std::cout << "phi_A(P_B) = " << iso_a(Pb) << "\n";
-	std::cout << "phi_A(Q_B) = " << iso_a(Qb) << "\n\n";
-	std::cout << "E_B: " << *iso_b.image() << "\n";
-	std::cout << "phi_B(P_A) = " << iso_b(Pa) << "\n";
-	std::cout << "phi_B(Q_A) = " << iso_b(Qa) << "\n";
-	std::cout << "\n";
-
-	WeierstrassPoint gen_ab = ma*iso_b(Pa) + na*iso_b(Qa);
-	WeierstrassPoint gen_ba = mb*iso_a(Pb) + nb*iso_a(Qb);
-
-	std::cout << '\n';
-	std::cout << "generator_ab = " << gen_ab << '\n';
-	std::cout << "generator_ba = " << gen_ba << '\n';
-	std::cout << '\n';
-
-	WeierstrassIsogeny iso_ab(gen_ab, la, ea, strategy);
-	WeierstrassIsogeny iso_ba(gen_ba, lb, eb, strategy);
-
-
-	std::cout << "\n";
-	std::cout << "E_AB: " << *iso_ab.image() << "\n";
-	std::cout << "E_BA: " << *iso_ba.image() << "\n";
-	std::cout << "\n";
-	std::cout << "\n";
-	std::cout << "j(E_AB) = " << iso_ab.image()->j_invariant() << "\n";
-	std::cout << "j(E_BA) = " << iso_ba.image()->j_invariant() << "\n";
-	std::cout << "\n";
-
-/*	int i;
-	for (i = 0; i < iso_ab.isogenies().size(); ++i) {
-		std::cout << iso_ab.isogenies()[i].image()->j_invariant();
-		if (i < iso_ba.isogenies().size())
-			std::cout << "   " << iso_ba.isogenies()[i].image()->j_invariant();
-		std::cout << "\n";
-	}*/
-//	iso_ab.print_j_invariants();
 }
 
 void test_serialization() {
