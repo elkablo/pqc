@@ -20,6 +20,7 @@ chacha::chacha(const void *key) :
 
 void chacha::set_key(const void *key)
 {
+	buffer_fill_ = 0;
 	chacha_set_key(&context_, static_cast<const uint8_t *>(key));
 	chacha_set_nonce(&context_, &static_cast<const uint8_t *>(key)[32]);
 }
@@ -45,7 +46,7 @@ void chacha::generate(void *_out, size_t size, bool x)
 			memmove(buffer_, buffer_ + size, buffer_fill_);
 			return;
 		} else {
-			mem_xor_or_copy(out, buffer_, size, x);
+			mem_xor_or_copy(out, buffer_, buffer_fill_, x);
 			out += buffer_fill_;
 			size -= buffer_fill_;
 			buffer_fill_ = 0;
