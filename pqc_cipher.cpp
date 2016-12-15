@@ -1,5 +1,4 @@
 #include <cstring>
-
 #include <pqc_cipher.hpp>
 #include <pqc_cipher_chacha20.hpp>
 

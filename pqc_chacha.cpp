@@ -1,8 +1,7 @@
 #include <cstring>
 #include <nettle/chacha.h>
 #include <nettle/memxor.h>
-
-#include "pqc_chacha.hpp"
+#include <pqc_chacha.hpp>
 
 namespace pqc
 {

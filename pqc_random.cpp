@@ -1,6 +1,5 @@
 #include <unistd.h>
 #include <sys/syscall.h>
-
 #include <gf.hpp>
 #include <pqc_chacha.hpp>
 

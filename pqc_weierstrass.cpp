@@ -1,6 +1,5 @@
 #include <memory>
-
-#include "pqc_weierstrass.hpp"
+#include <pqc_weierstrass.hpp>
 
 namespace pqc {
 

@@ -1,5 +1,4 @@
 #include <sstream>
-
 #include <pqc_session.hpp>
 #include <pqc_handshake.hpp>
 #include <pqc_cipher.hpp>
@@ -275,12 +274,6 @@ void session::handle_handshake(const char *buf, size_t size)
 void session::handle_incoming_close()
 {
 	peer_closed_ = true;
-	if (state_ == state::CLOSING) {
-		state_ = state::CLOSED;
-		std::cout << "\tremote closed - all closed\n";
-	} else {
-		std::cout << "\tremote closed\n";
-	}
 }
 
 void session::handle_incoming_data(const char *buf, size_t size)
@@ -294,7 +287,6 @@ void session::handle_incoming_rekey(const char *buf, size_t size)
 	if (size < min_nonce_size)
 		return set_error(error::BAD_REKEY);
 
-	std::cout << "\tREKEY peer\n";
 	peer_mac_->key(buf, size);
 	peer_ephemeral_key_ = peer_mac_->compute(peer_ephemeral_key_);
 	peer_cipher_->key(peer_ephemeral_key_);
@@ -360,8 +352,6 @@ void session::do_rekey()
 	mac_->key(nonce);
 	ephemeral_key_ = mac_->compute(ephemeral_key_);
 	cipher_->key(ephemeral_key_);
-
-	std::cout << "\tREKEY\n";
 
 	since_last_rekey_ = 0;
 }

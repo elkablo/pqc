@@ -1,6 +1,5 @@
 #include <cstring>
 #include <arpa/inet.h>
-
 #include <pqc_packet.hpp>
 
 namespace pqc {
@@ -31,11 +30,7 @@ bool packet::verify() const
 void packet::encrypt(const std::shared_ptr<cipher>& cipher)
 {
 	if (!encrypted_) {
-		cipher->encrypt(
-			reinterpret_cast<void *>(ptr()),
-			size_for_mac() + mac_->size()
-		);
-
+		cipher->encrypt(reinterpret_cast<void *>(ptr()), get_size());
 		encrypted_ = true;
 	}
 }
@@ -81,7 +76,7 @@ close_packet::close_packet(std::string& buffer, std::shared_ptr<mac>& mac) :
 void close_packet::set_data()
 {
 	// resize
-	buffer_.resize(position_ + header_size);
+	buffer_.resize(position_ + header_size + mac_->size());
 
 	// set type
 	ptr()[0] = type::CLOSE;

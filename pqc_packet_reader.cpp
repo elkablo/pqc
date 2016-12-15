@@ -112,6 +112,7 @@ void packet_reader::pop_packet()
 		packet_complete_ = false;
 
 		incoming_.erase(0, pop_size);
+
 		decrypted_ = 0;
 	}
 }

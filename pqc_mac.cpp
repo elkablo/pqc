@@ -1,5 +1,4 @@
 #include <cstring>
-
 #include <pqc_mac.hpp>
 #include <pqc_mac_hmac_sha.hpp>
 

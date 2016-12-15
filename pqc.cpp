@@ -1,3 +1,4 @@
+#include <sstream>
 #include <iostream>
 #include <cerrno>
 #include <cstdlib>
@@ -69,8 +70,11 @@ std::string sess_read(pqc::session& sess, int fd, int ms = 1000, bool dontread =
 
 		printf("--Read %i bytes from socket %i.\n", value, fd);
 		sess.write_incoming(buf, value);
-		if (sess.is_error())
-			return "";
+		if (sess.is_error()) {
+			std::stringstream ss;
+			ss << "error " << ((int) sess.error_code());
+			return ss.str();
+		}
 	}
 
 	if (dontread)
@@ -103,6 +107,8 @@ int do_server(int fd)
 	}
 
 	std::cout << sess_read(sess, fd, 2000) << "\n";
+	sess.close();
+	move_between(sess, fd);
 
 	std::cout << "server done\n";
 
@@ -115,6 +121,7 @@ int do_client(int fd)
 //	size_t sz;
 	pqc::session sess;
 
+	sess.set_rekey_after(3);
 	sess.start_client("google");
 	while (!sess.is_handshaken()) {
 		move_between(sess, fd);
@@ -124,7 +131,11 @@ int do_client(int fd)
 		}
 	}
 
-	sess_write(sess, fd, "test1");
+	sess_write(sess, fd, "test1\n");
+	sess_write(sess, fd, "test2\n");
+	sess_write(sess, fd, "test3\n");
+	sess.close();
+	move_between(sess, fd);
 
 	std::cout << "client done\n";
 

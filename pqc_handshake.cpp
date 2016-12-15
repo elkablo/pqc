@@ -1,7 +1,6 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
-
 #include <pqc_handshake.hpp>
 #include <pqc_cipher.hpp>
 #include <pqc_kex.hpp>
