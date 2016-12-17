@@ -17,7 +17,7 @@ handshake::handshake() :
 	server_auth(NULL),
 	client_auths(NULL),
 	client_auths_len(0),
-	encrypted_secret(NULL),
+	secret(NULL),
 	cipher(PQC_CIPHER_UNKNOWN),
 	mac(PQC_MAC_UNKNOWN),
 	nonce(NULL)
@@ -34,8 +34,8 @@ handshake::~handshake()
 			free (client_auths[i]);
 		free (client_auths);
 	}
-	if (encrypted_secret)
-		free (encrypted_secret);
+	if (secret)
+		free (secret);
 	if (nonce)
 		free (nonce);
 }
@@ -165,10 +165,10 @@ const char * handshake::parse_init(const char * input)
 			}
 			client_auths = tmp;
 			client_auths[client_auths_len++] = auth;
-		} else if (has_prefix (ptr, "Encrypted-secret: ", &ptr)) {
-			if (encrypted_secret)
+		} else if (has_prefix (ptr, "Secret: ", &ptr)) {
+			if (secret)
 				return nullptr;
-			encrypted_secret = strndup (ptr, nl - ptr);
+			secret = strndup (ptr, nl - ptr);
 		} else {
 			return nullptr;
 		}
@@ -236,7 +236,7 @@ int main () {
 		"Server-auth: 1234s\n"
 		"Client-auth: 1234c1\n"
 		"Client-auth: 1234c2\n"
-		"Encrypted-secret: 12345secret\n\n";
+		"Secret: 12345secret\n\n";
 
 	std::string tomatch2 =
 		"KEX: OK\n"
@@ -255,7 +255,7 @@ int main () {
 	for (int i = 0; i < h.client_auths_len; ++i) {
 		std::cout << "client auth = " << h.client_auths[i] << "\n";
 	}
-	std::cout << "encrypted secret = " << h.encrypted_secret << '\n';
+	std::cout << "secret = " << h.secret << '\n';
 
 	h.parse_fini(tomatch2.c_str());
 	std::cout << "cipher = " << h.cipher << '\n';

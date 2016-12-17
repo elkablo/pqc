@@ -17,7 +17,7 @@ struct handshake {
 	char **client_auths;
 	size_t client_auths_len;
 
-	char *encrypted_secret;
+	char *secret;
 
 	enum pqc_cipher cipher;
 	enum pqc_mac mac;

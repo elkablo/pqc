@@ -183,22 +183,22 @@ void session::handle_handshake(const char *buf, size_t size)
 				|| !is_kex_enabled(handshake.kex)
 				|| !available_ciphers
 				|| !available_macs
-				|| !handshake.encrypted_secret
+				|| !handshake.secret
 			)
 				return set_error(error::BAD_HANDSHAKE);
 
 			cipher_ = cipher::create(*available_ciphers.begin());
 			mac_ = mac::create(*available_macs.begin());
 
-			std::string encrypted_secret;
+			std::string secret;
 
 			if (mode_ == mode::SERVER) {
 				use_kex_ = handshake.kex;
 				kex_ = kex::create(use_kex_, kex::mode::SERVER);
-				encrypted_secret = kex_->init();
+				secret = kex_->init();
 			}
 
-			session_key_ = kex_->fini(handshake.encrypted_secret);
+			session_key_ = kex_->fini(handshake.secret);
 			if (!session_key_.size())
 				return set_error(error::BAD_HANDSHAKE);
 
@@ -210,7 +210,7 @@ void session::handle_handshake(const char *buf, size_t size)
 			cipher_->key(ephemeral_key_);
 
 			if (mode_ == mode::SERVER) {
-				send_handshake_init(encrypted_secret);
+				send_handshake_init(secret);
 			}
 			send_handshake_fini(nonce);
 
@@ -420,7 +420,7 @@ ssize_t session::read_outgoing(char *buf, size_t size)
 	return res;
 }
 
-void session::send_handshake_init(const std::string& encrypted_secret)
+void session::send_handshake_init(const std::string& secret)
 {
 	std::stringstream stream;
 
@@ -446,7 +446,7 @@ void session::send_handshake_init(const std::string& encrypted_secret)
 		stream << "Server-auth: " << server_auth_ << '\n';
 
 	/* Client-auth !!! */
-	stream << "Encrypted-secret: " << encrypted_secret << "\n";
+	stream << "Secret: " << secret << "\n";
 
 	stream << "\n";
 
