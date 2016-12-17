@@ -6,7 +6,7 @@
 namespace pqc
 {
 
-void random_bytes(char *out, size_t size)
+void random_bytes(void *out, size_t size)
 {
 	static thread_local bool initialized = false;
 	static thread_local chacha chacha;
@@ -39,7 +39,7 @@ Z random_z(size_t bits)
 	Z result(0);
 	size_t n = bits2limbs(bits);
 	mp_limb_t array[n];
-	random_bytes(reinterpret_cast<char *>(array), sizeof(array));
+	random_bytes(array, sizeof(array));
 	for (size_t i = 0; i < n; ++i) {
 		result <<= sizeof(mp_limb_t)*8;
 		result |= array[i];
