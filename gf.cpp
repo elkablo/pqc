@@ -1,4 +1,6 @@
-#include "gf.hpp"
+#include <gf.hpp>
+
+namespace pqc {
 
 std::string Z::serialize(size_t len) const
 {
@@ -43,15 +45,8 @@ bool GF::unserialize(const std::string& raw)
 	return true;
 }
 
-MontgomeryPoint MontgomeryCurve::zero () {
-	GF z(A.get_p());
-	return MontgomeryPoint(*this, z, z);
-}
-
 Z GF::t1;
 Z GF::t2;
 Z GF::t3;
 
-GF MontgomeryPoint::t1;
-GF MontgomeryPoint::t2;
-GF MontgomeryPoint::t3;
+}
