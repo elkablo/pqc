@@ -187,8 +187,16 @@ void session::handle_handshake(const char *buf, size_t size)
 			)
 				return set_error(error::BAD_HANDSHAKE);
 
-			cipher_ = cipher::create(*available_ciphers.begin());
-			mac_ = mac::create(*available_macs.begin());
+			cipher_ = cipher::create(
+				available_ciphers.isset(cipher::get_default())
+					? cipher::get_default()
+					: *available_ciphers.begin()
+			);
+			mac_ = mac::create(
+				available_macs.isset(mac::get_default())
+					? mac::get_default()
+					: *available_macs.begin()
+			);
 
 			std::string secret;
 
