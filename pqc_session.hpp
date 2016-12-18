@@ -39,7 +39,8 @@ public:
 		BAD_PACKET,
 		BAD_MAC,
 		BAD_REKEY,
-		ALREADY_CLOSED
+		ALREADY_CLOSED,
+		OTHER
 	};
 
 	typedef std::function<const char *(const char *)> auth_callback_t;
@@ -87,8 +88,10 @@ public:
 
 	void close();
 
-private:
+protected:
 	void set_error(error);
+
+private:
 	void do_rekey();
 	void write_packet(const char *, size_t);
 	void send_handshake_init(const std::string&);
@@ -104,7 +107,12 @@ private:
 	mode mode_;
 	bool peer_closed_;
 	size_t rekey_after_, since_last_rekey_, since_last_peer_rekey_;
-	std::string incoming_, outgoing_, incoming_handshake_;
+
+protected:
+	std::string incoming_, outgoing_;
+
+private:
+	std::string incoming_handshake_;
 
 	packet_reader packet_reader_;
 
