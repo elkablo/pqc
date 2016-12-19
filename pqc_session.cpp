@@ -265,10 +265,7 @@ void session::handle_handshake(const char *buf, size_t size)
 			packet_reader_.set_mac(peer_mac_);
 			packet_reader_.set_cipher(peer_cipher_);
 
-			if (outgoing_.size() > 0)
-				state_ = state::HANDSHAKING_TILL_SENT;
-			else
-				state_ = state::NORMAL;
+			state_ = state::NORMAL;
 		} else if (state_ == state::NORMAL) {
 			handle_incoming(incoming_handshake_.c_str(), incoming_handshake_.size());
 			incoming_handshake_.erase();
@@ -333,8 +330,10 @@ void session::handle_incoming(const char *buf, size_t size)
 		set_error(error::BAD_PACKET);
 }
 
-void session::write_incoming(const char *buf, size_t size)
+void session::write_incoming(const void *vbuf, size_t size)
 {
+	const char *buf = static_cast<const char *>(vbuf);
+
 	if (peer_closed_)
 		set_error(error::ALREADY_CLOSED);
 
@@ -378,8 +377,10 @@ void session::write_packet(const char *buf, size_t size)
 		do_rekey();
 }
 
-void session::write(const char *buf, size_t size)
+void session::write(const void *vbuf, size_t size)
 {
+	const char *buf = static_cast<const char *>(vbuf);
+
 	if (state_ != state::NORMAL || !size)
 		return;
 
@@ -397,7 +398,7 @@ void session::write(const char *buf, size_t size)
 		write_packet(pkt, size);
 }
 
-ssize_t session::read(char *buf, size_t size)
+ssize_t session::read(void *buf, size_t size)
 {
 	if (state_ < state::NORMAL || !incoming_.size())
 		return -1;
@@ -410,20 +411,11 @@ ssize_t session::read(char *buf, size_t size)
 	return size;
 }
 
-ssize_t session::read_outgoing(char *buf, size_t size)
+ssize_t session::read_outgoing(void *buf, size_t size)
 {
 	ssize_t res = std::min(size, outgoing_.size());
 	::memcpy(buf, outgoing_.c_str(), res);
 	outgoing_.erase(0, res);
-
-	if (outgoing_.size() == 0) {
-		if (state_ == state::HANDSHAKING_TILL_SENT)
-			state_ = state::NORMAL;
-		else if (state_ == state::CLOSING)
-			state_ = state::CLOSED;
-		else
-			;
-	}
 
 	return res;
 }
@@ -503,7 +495,7 @@ void session::close()
 	pkt.sign();
 	pkt.encrypt(cipher_);
 
-	state_ = state::CLOSING;
+	state_ = state::CLOSED;
 }
 
 }

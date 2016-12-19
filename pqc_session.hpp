@@ -22,9 +22,7 @@ class session
 		ERROR,
 		INIT,
 		HANDSHAKING,
-		HANDSHAKING_TILL_SENT,
 		NORMAL,
-		CLOSING,
 		CLOSED
 	};
 	enum class mode {
@@ -78,10 +76,10 @@ public:
 	bool is_handshaken() const;
 	bool is_closed() const;
 	bool is_peer_closed() const;
-	void write_incoming(const char *, size_t);
-	void write(const char *, size_t);
-	ssize_t read(char *, size_t);
-	ssize_t read_outgoing(char *, size_t);
+	void write_incoming(const void *, size_t);
+	void write(const void *, size_t);
+	ssize_t read(void *, size_t);
+	ssize_t read_outgoing(void *, size_t);
 
 	void start_server();
 	void start_client(const char *);

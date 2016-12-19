@@ -1,8 +1,7 @@
 CXXFLAGS = -fPIC -fno-exceptions -fno-stack-protector -march=native -std=c++14 -I.
 LDFLAGS = -lgmpxx -lgmp -lnettle
 
-OBJS = 				\
-	pqc.o			\
+LIBPQC_OBJS = 			\
 	pqc_packet.o		\
 	pqc_packet_reader.o	\
 	pqc_session.o		\
@@ -19,10 +18,8 @@ OBJS = 				\
 	pqc_chacha.o		\
 	gf.o
 
-WEIER_OBJS = pqc_weierstrass_main.o gf.o pqc_random.o pqc_chacha.o
-
-all: optimize pqc weier
-debug: debugize pqc weier
+all: optimize libpqc.so pqc-telnet pqc-telnetd weier
+debug: debugize libpqc.so pqc-telnet pqc-telnetd weier
 
 optimize:
 	$(eval CXXFLAGS += -O2)
@@ -30,11 +27,17 @@ optimize:
 debugize:
 	$(eval CXXFLAGS += -ggdb)
 
-pqc: $(OBJS)
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS)
+libpqc.so: $(LIBPQC_OBJS)
+	g++ $(CXXFLAGS) $(LDFLAGS) -shared -o libpqc.so $(LIBPQC_OBJS)
 
-weier: $(WEIER_OBJS)
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $(WEIER_OBJS)
+pqc-telnet: pqc-telnet.o libpqc.so
+	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc-telnet.o -L. -lpqc -Wl,-rpath,.
+
+pqc-telnetd: pqc-telnetd.o libpqc.so
+	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc-telnetd.o -L. -lpqc -Wl,-rpath,.
+
+weier: pqc_weierstrass_main.o libpqc.so
+	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc_weierstrass_main.o -L. -lpqc -Wl,-rpath,.
 
 pqc_weierstrass_main.o: pqc_weierstrass.cpp
 	g++ -DWEIERSTRASS_MAIN $(CXXFLAGS) -c -o $@ $<
@@ -43,4 +46,4 @@ pqc_weierstrass_main.o: pqc_weierstrass.cpp
 	g++ $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(OBJS) $(WEIER_OBJS) weier pqc
+	rm -rf $(LIBPQC_OBJS) libpqc.so pqc-telnet pqc-telnetd pqc_weierstrass_main.o weier
