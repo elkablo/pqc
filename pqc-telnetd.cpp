@@ -240,9 +240,9 @@ static void handle_client(int sock)
 	struct pollfd pfds[2];
 
 	pfds[0].fd = sock;
-	pfds[0].fd = POLLIN;
+	pfds[0].events = POLLIN;
 	pfds[1].fd = master;
-	pfds[1].fd = POLLIN;
+	pfds[1].events = POLLIN;
 
 	if (sess.bytes_available())
 		handle_session_input(sess, master);
@@ -259,6 +259,7 @@ static void handle_client(int sock)
 
 		if (pfds[0].revents)
 			handle_session_input(sess, master);
+
 		if (pfds[1].revents) {
 			if (!handle_pty_input(sess, master)) {
 				close(master);
