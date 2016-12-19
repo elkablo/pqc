@@ -46,4 +46,4 @@ pqc_weierstrass_main.o: pqc_weierstrass.cpp
 	g++ $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(LIBPQC_OBJS) libpqc.so pqc-telnet pqc-telnetd pqc_weierstrass_main.o weier
+	rm -rf $(LIBPQC_OBJS) libpqc.so pqc-telnet pqc-telnet.o pqc-telnetd pqc-telnetd.o pqc_weierstrass_main.o weier
