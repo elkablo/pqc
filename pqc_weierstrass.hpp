@@ -1,7 +1,9 @@
+#ifndef PQC_WEIERSTRASS_HPP
+#define PQC_WEIERSTRASS_HPP
+
 #include <memory>
 #include <vector>
-
-#include "gf.hpp"
+#include <gf.hpp>
 
 namespace pqc {
 
@@ -77,6 +79,9 @@ public:
 	friend class WeierstrassSmallIsogeny;
 
 	WeierstrassPoint() {}
+
+	WeierstrassPoint(const Z& p) :
+		m_curve(std::make_shared<WeierstrassCurve>(p)), x(p), y(p), identity(true) {}
 
 	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x, const GF& y) :
 		m_curve(curve), x(x), y(y), identity(false) {}
@@ -277,10 +282,12 @@ public:
 };
 
 class WeierstrassIsogeny {
-	const WeierstrassPoint m_generator;
-	const int m_base, m_exp;
+	WeierstrassPoint m_generator;
+	int m_base, m_exp;
 	std::vector<WeierstrassSmallIsogeny> m_isogenies;
 public:
+	WeierstrassIsogeny() {}
+
 	WeierstrassIsogeny(const WeierstrassPoint& generator, int base, int exp) :
 		m_generator(generator), m_base(base), m_exp(exp)
 	{
@@ -368,3 +375,5 @@ public:
 };
 
 }
+
+#endif /* PQC_WEIERSTRASS_HPP */

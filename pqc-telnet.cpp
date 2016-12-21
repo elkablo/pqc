@@ -183,7 +183,7 @@ static void do_session(int sock)
 
 	const char *term = ::getenv("TERM");
 	uint16_t len = ::strlen(term) < 65535 ? ::strlen(term) : 65535;
-	uint16_t nlen = ::htons(len);
+	uint16_t nlen = htons(len);
 	sess.write(&nlen, sizeof(nlen));
 	sess.write(term, len);
 

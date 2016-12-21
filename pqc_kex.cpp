@@ -40,7 +40,7 @@ std::shared_ptr<kex> kex::create(enum pqc_kex type, mode mode_)
 {
 	switch (type) {
 		case PQC_KEX_SIDHex:
-			return std::make_shared<SIDHex>(mode_);
+			return std::make_shared<kex_sidhex>(mode_);
 		default:
 			return nullptr;
 	}

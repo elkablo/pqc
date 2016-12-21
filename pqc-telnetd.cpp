@@ -77,7 +77,7 @@ static string read_varsized_packet(pqc::socket_session& sess)
 		exit(EXIT_FAILURE);
 	}
 
-	length = ::ntohs(length);
+	length = ntohs(length);
 	return read_packet(sess, length);
 }
 

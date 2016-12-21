@@ -64,10 +64,19 @@ void measure(const std::string& str, int repeats, std::function<void()> f) {
 
 void generate_mn(Z& m, Z& n, Z& le, int l)
 {
-	do {
+/*	do {
 		m = random_z_below(le);
 		n = random_z_below(le);
-	} while ((m % l) == 0 && (n % l) == 0);
+	} while ((m % l) == 0 && (n % l) == 0);*/
+	if (random_u32_below(l+1)) {
+		std::cout << "a ";
+		m = 1;
+		n = random_z_below(le);
+	} else {
+		std::cout << "b ";
+		m = random_z_below(le/l)*l;
+		n = 1;
+	}
 }
 
 void generate_mn_alternative(Z& m, Z& n, Z& le, int l)

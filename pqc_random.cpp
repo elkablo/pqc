@@ -50,10 +50,30 @@ Z random_z(size_t bits)
 
 Z random_z_below(const Z& limit)
 {
+	if (limit <= 0)
+		return -1;
+
 	size_t k = limit.bit_length();
 	Z result;
 	do {
 		result = random_z(k);
+	} while (result >= limit);
+	return result;
+}
+
+uint32_t random_u32_below(uint32_t limit)
+{
+	if (!limit) {
+		// just no
+		return 0;
+	}
+
+	uint32_t result;
+	int clz = __builtin_clz(limit);
+
+	do {
+		random_bytes(&result, sizeof(result));
+		result >>= clz;
 	} while (result >= limit);
 	return result;
 }
