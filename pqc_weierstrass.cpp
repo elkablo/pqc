@@ -1,9 +1,11 @@
 #include <memory>
 #include <pqc_weierstrass.hpp>
+#include <pqc_random.hpp>
 
 namespace pqc {
 
-WeierstrassSmallIsogeny WeierstrassCurve::small_isogeny (const WeierstrassPoint& generator, int l) const {
+WeierstrassSmallIsogeny WeierstrassCurve::small_isogeny (const WeierstrassPoint& generator, int l) const
+{
 	GF t = a*(l-1), w = 2*(l-1)*b;
 	if (l == 2) {
 		/* σ  = x(generator)
@@ -26,6 +28,137 @@ WeierstrassSmallIsogeny WeierstrassCurve::small_isogeny (const WeierstrassPoint&
 		
 	}
 	return WeierstrassSmallIsogeny(std::make_shared<WeierstrassCurve>(a - 5*t, b - 7*w), generator, l);
+}
+
+WeierstrassPoint WeierstrassCurve::random_point() const
+{
+	GF x(a.get_p()), y(a.get_p());
+
+	do {
+		x.a = random_z_below(x.get_p());
+		x.b = random_z_below(x.get_p());
+		y = (x.square() + a)*x + b;
+	} while (!y.is_square());
+
+	y.sqrt();
+
+	if (random_u32_below(2))
+		y = -y;
+
+	return WeierstrassPoint(shared_from_this(), x, y);
+}
+
+WeierstrassPoint WeierstrassCurve::torsion_point(const Z& cofactor, const Z& factor_div_p) const
+{
+	WeierstrassPoint P;
+	do {
+		P = random_point() * cofactor;
+	} while ((P * factor_div_p).is_identity());
+	return P;
+}
+
+std::pair<WeierstrassPoint, WeierstrassPoint> WeierstrassCurve::basis(int la, int ea, int lb, int eb, int f) const
+{
+	Z cofactor = Z(lb).pow(eb)*f;
+	Z factor_div_p = Z(la).pow(ea-1);
+	Z factor = factor_div_p * la;
+
+	WeierstrassPoint P = torsion_point(cofactor, factor_div_p), Q;
+	do {
+		Q = torsion_point(cofactor, factor_div_p);
+	} while (P.weil_pairing(Q, factor).pow(factor_div_p) == 1);
+	return std::make_pair(P, Q);
+}
+
+GF WeierstrassPoint::line(const WeierstrassPoint& R, const WeierstrassPoint& Q) const
+{
+	const Z& p = m_curve->a.get_p();
+	const WeierstrassPoint& P = *this;
+
+	if (Q.is_identity())
+		return GF(p);
+
+	if (P.is_identity() || R.is_identity()) {
+		if (P == R)
+			return GF(p, 1);
+		else if (P.is_identity())
+			return Q.x - R.x;
+		else
+			return Q.x - P.x;
+	} else if (P != R) {
+		if (P.x == R.x) {
+			return Q.x - P.x;
+		} else {
+			GF l = (R.y - P.y) / (R.x - P.x);
+			return (Q.y - P.y) - l*(Q.x - P.x);
+		}
+	} else {
+		if (P.y == 0) {
+			return Q.x - P.x;
+		} else {
+			GF l = (3*P.x.square() + m_curve->a) / (2*P.y);
+			return (Q.y - P.y) - l*(Q.x - P.x);
+		}
+	}
+}
+
+GF WeierstrassPoint::miller(const WeierstrassPoint& Q, Z n) const
+{
+	const Z& p = m_curve->a.get_p();
+	const WeierstrassPoint& P = *this;
+
+	if (Q.is_identity() || n == 0)
+		return GF(p);
+
+	bool neg = n < 0;
+	if (neg)
+		n = -n;
+
+	GF t(p, 1), l, v;
+	WeierstrassPoint V(P), S(2*V);
+
+	for (std::ptrdiff_t i = n.bit_length() - 2; i >= 0; --i) {
+		S = 2*V;
+		l = V.line(V, Q);
+		v = S.line(-S, Q);
+		t = t.square() * (l/v);
+		V = S;
+		if (n.testbit(i)) {
+			S = V + P;
+			l = V.line(P, Q);
+			v = S.line(-S, Q);
+			t *= (l/v);
+			V = S;
+		}
+	}
+
+	if (neg) {
+		v = V.line(-V, Q);
+		t = (t*v).inverse();
+	}
+
+	return t;
+}
+
+GF WeierstrassPoint::weil_pairing(const WeierstrassPoint& Q, const Z& n) const
+{
+	const Z& p = m_curve->a.get_p();
+	const WeierstrassPoint& P = *this;
+
+	if (!(P*n).is_identity() || !(Q*n).is_identity())
+		return GF(p);
+
+	if (P == Q || P.is_identity() || Q.is_identity())
+		return GF(p, 1);
+
+	GF denominator = Q.miller(P, n);
+	if (denominator == 0)
+		return GF(p, 1);
+
+	GF numerator = P.miller(Q, n);
+	if (n.testbit(0))
+		numerator = -numerator;
+	return numerator / denominator;
 }
 
 }
@@ -59,7 +192,8 @@ void measure(const std::string& str, int repeats, std::function<void()> f) {
 	for (int i = 0; i < repeats; ++i)
 		f();
 	auto end = steady_clock::now();
-	std::cout << str << " took " << duration_cast<milliseconds>(end - start).count() << "ms\n";
+	auto ms = duration_cast<milliseconds>(end - start).count();
+	std::cout << str << " took " << ms << "ms (" << (ms/repeats) << " ms per iteration)\n";
 }
 
 void generate_mn(Z& m, Z& n, Z& le, int l)
@@ -69,11 +203,9 @@ void generate_mn(Z& m, Z& n, Z& le, int l)
 		n = random_z_below(le);
 	} while ((m % l) == 0 && (n % l) == 0);*/
 	if (random_u32_below(l+1)) {
-		std::cout << "a ";
 		m = 1;
 		n = random_z_below(le);
 	} else {
-		std::cout << "b ";
 		m = random_z_below(le/l)*l;
 		n = 1;
 	}
@@ -247,14 +379,25 @@ void test_weierstrass () {
 	// Qb = ψ(Pb)
 
 	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
-	WeierstrassPoint Pa(E, GF(p, 11), GF(p, Z(11*11*11+11)).sqrt());
-	WeierstrassPoint Pb(E, GF(p, 6), GF(p, Z(6*6*6+6)).sqrt());
-	int la = 2, lb = 3, ea = 372, eb = 239;
+
+	int la = 2, lb = 3, ea = 372, eb = 239, f = 1;
+
 	Z lea = Z(la).pow(ea);
 	Z leb = Z(lb).pow(eb);
-	Pa *= leb;
-	Pb *= lea;
-	WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
+
+	auto PQa = E->basis(la, ea, lb, eb, f);
+	auto PQb = E->basis(lb, eb, la, ea, f);
+
+	auto Pa = PQa.first;
+	auto Qa = PQa.second;
+	auto Pb = PQb.first;
+	auto Qb = PQb.second;
+
+	// WeierstrassPoint Pa(E, GF(p, 11), GF(p, Z(11*11*11+11)).sqrt());
+	// WeierstrassPoint Pb(E, GF(p, 6), GF(p, Z(6*6*6+6)).sqrt());
+	// Pa *= leb;
+	// Pb *= lea;
+	// WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
 
 	// check order
 	if (false) {
@@ -264,7 +407,7 @@ void test_weierstrass () {
 	}
 
 	// measure time
-	if (false)
+	if (true)
 		return measure_time(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy);
 
 	if (true) {
@@ -272,8 +415,8 @@ void test_weierstrass () {
 
 		std::cout << "Comparing j-invariants\n";
 
-		for (int i = 0; i < tries; ++i) {
-			std::cout << "Round 1: ";
+		for (int i = 1; i <= tries; ++i) {
+			std::cout << "Round " << i << ": ";
 			if (compare_j_invariants(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy)) {
 				++generate_mn_success;
 				std::cout << "T ";

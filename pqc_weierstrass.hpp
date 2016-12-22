@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <vector>
+#include <utility>
 #include <gf.hpp>
 
 namespace pqc {
@@ -20,6 +21,12 @@ namespace pqc {
    Δ = -b₂²b₈ - 8b₄³ - 27b₆² + 9b₂b₄b₆
    j = c₄³/Δ = 1728 + c₆²/Δ
 
+   a1 = 0
+   a3 = 0
+   a2 = 0
+   a4 = a
+   a6 = b
+
    If the characteristic is not 2 nor 3, the curve can be written as
    Y² = X³ + aX + b
    Δ = -16·(4a³ + 27b²)
@@ -32,7 +39,7 @@ class WeierstrassCurve;
 class WeierstrassPoint;
 class WeierstrassSmallIsogeny;
 
-class WeierstrassCurve {
+class WeierstrassCurve : public std::enable_shared_from_this<WeierstrassCurve> {
 	GF a, b;
 public:
 	friend class WeierstrassPoint;
@@ -66,12 +73,19 @@ public:
 		os << "y² = x³ + " << curve.a << "·x + " << curve.b;
 		return os;
 	}
+
+
+	std::pair<WeierstrassPoint, WeierstrassPoint> basis(int la, int ea, int lb, int eb, int f) const;
+private:
+	WeierstrassPoint random_point() const;
+	WeierstrassPoint torsion_point(const Z&, const Z&) const;
 };
 
 typedef std::shared_ptr<WeierstrassCurve> WeierstrassCurvePtr;
+typedef std::shared_ptr<const WeierstrassCurve> WeierstrassCurveConstPtr;
 
 class WeierstrassPoint {
-	WeierstrassCurvePtr m_curve;
+	WeierstrassCurveConstPtr m_curve;
 	GF x, y;
 	bool identity;
 public:
@@ -83,10 +97,10 @@ public:
 	WeierstrassPoint(const Z& p) :
 		m_curve(std::make_shared<WeierstrassCurve>(p)), x(p), y(p), identity(true) {}
 
-	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x, const GF& y) :
+	WeierstrassPoint(const WeierstrassCurveConstPtr& curve, const GF& x, const GF& y) :
 		m_curve(curve), x(x), y(y), identity(false) {}
 
-	WeierstrassPoint(const WeierstrassCurvePtr& curve, const GF& x) :
+	WeierstrassPoint(const WeierstrassCurveConstPtr& curve, const GF& x) :
 		m_curve(curve), x(x), identity(false) {
 
 		y = (x.square() + m_curve->a)*x + m_curve->b;
@@ -98,14 +112,15 @@ public:
 		y.sqrt();
 	}
 
+	WeierstrassPoint(const WeierstrassCurveConstPtr& curve) : m_curve(curve), x(curve->a.get_p()), y(curve->a.get_p()), identity(true) {}
 	WeierstrassPoint(const WeierstrassCurvePtr& curve) : m_curve(curve), x(curve->a.get_p()), y(curve->a.get_p()), identity(true) {}
 
-	const WeierstrassCurvePtr& curve() const {
+	const WeierstrassCurveConstPtr& curve() const {
 		return m_curve;
 	}
 
 	bool check() const {
-		return m_curve && identity || y.square() == ((x.square() + m_curve->a)*x + m_curve->b);
+		return m_curve && (identity || y.square() == ((x.square() + m_curve->a)*x + m_curve->b));
 	}
 
 	bool is_identity() const {
@@ -231,6 +246,10 @@ public:
 		return WeierstrassPoint(m_curve, -x, y * GF(y.get_p(), 0, 1));
 	}
 
+	GF line(const WeierstrassPoint&, const WeierstrassPoint&) const;
+	GF miller(const WeierstrassPoint&, Z) const;
+	GF weil_pairing(const WeierstrassPoint&, const Z&) const;
+
 	friend std::ostream& operator<<(std::ostream& os, const WeierstrassPoint& point) {
 		if (point.identity)
 			os << "identity ∈ " << *point.m_curve;
@@ -292,7 +311,7 @@ public:
 		m_generator(generator), m_base(base), m_exp(exp)
 	{
 		Z zbase(base);
-		WeierstrassCurvePtr curve = generator.curve();
+		WeierstrassCurveConstPtr curve = generator.curve();
 		WeierstrassPoint R(generator);
 
 		m_isogenies.reserve(exp);
@@ -309,7 +328,7 @@ public:
 	WeierstrassIsogeny(const WeierstrassPoint& generator, int base, int exp, const std::vector<int>& strategy) :
 		m_generator(generator), m_base(base), m_exp(exp)
 	{
-		WeierstrassCurvePtr curve = generator.curve();
+		WeierstrassCurveConstPtr curve = generator.curve();
 		std::vector<WeierstrassPoint> Rs{generator};
 		std::vector<int> hs{exp};
 
