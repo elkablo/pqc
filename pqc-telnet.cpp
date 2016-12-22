@@ -15,10 +15,6 @@
 #include <termios.h>
 #include <pqc_socket_session.hpp>
 
-#include <pqc_sidh_key.hpp>
-#include <pqc_auth.hpp>
-#include <pqc_base64.hpp>
-
 using namespace std;
 using namespace pqc;
 
