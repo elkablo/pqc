@@ -10,6 +10,7 @@ struct handshake {
 	int version;
 	char *server_name;
 	enum pqc_kex kex;
+	enum pqc_auth auth;
 	cipherset supported_ciphers;
 	macset supported_macs;
 	char *server_auth;
@@ -17,11 +18,11 @@ struct handshake {
 	char **client_auths;
 	size_t client_auths_len;
 
-	char *secret;
+	char *secret, *secret_auth;
 
 	enum pqc_cipher cipher;
 	enum pqc_mac mac;
-	char *nonce;
+	char *nonce, *secret_auth_reply;
 
 	handshake();
 	~handshake();

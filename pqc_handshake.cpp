@@ -5,22 +5,26 @@
 #include <pqc_cipher.hpp>
 #include <pqc_kex.hpp>
 #include <pqc_mac.hpp>
+#include <pqc_auth.hpp>
 
 namespace pqc {
 
 handshake::handshake() :
 	version(-1),
-	server_name(NULL),
+	server_name(nullptr),
 	kex(PQC_KEX_UNKNOWN),
+	auth(PQC_AUTH_UNKNOWN),
 	supported_ciphers(),
 	supported_macs(),
-	server_auth(NULL),
-	client_auths(NULL),
+	server_auth(nullptr),
+	client_auths(nullptr),
 	client_auths_len(0),
-	secret(NULL),
+	secret(nullptr),
+	secret_auth(nullptr),
 	cipher(PQC_CIPHER_UNKNOWN),
 	mac(PQC_MAC_UNKNOWN),
-	nonce(NULL)
+	nonce(nullptr),
+	secret_auth_reply(nullptr)
 {}
 
 handshake::~handshake()
@@ -36,8 +40,12 @@ handshake::~handshake()
 	}
 	if (secret)
 		free (secret);
+	if (secret_auth)
+		free (secret_auth);
 	if (nonce)
 		free (nonce);
+	if (secret_auth_reply)
+		free (secret_auth_reply);
 }
 
 static bool has_prefix (const char *s, const char *p, const char ** n)
@@ -129,7 +137,7 @@ const char * handshake::parse_init(const char * input)
 		return nullptr;
 	}
 
-	bool has_kex = false, has_ciphers = false, has_macs = false;
+	bool has_kex = false, has_auth = false, has_ciphers = false, has_macs = false;
 
 	while (*ptr != '\0' && *ptr != '\n') {
 		const char *nl = strchr (ptr, '\n');
@@ -142,6 +150,11 @@ const char * handshake::parse_init(const char * input)
 				return nullptr;
 			kex = kex::from_string (ptr, nl - ptr);
 			has_kex = true;
+		} else if (has_prefix (ptr, "Auth-type: ", &ptr)) {
+			if (has_auth)
+				return nullptr;
+			auth = auth::from_string (ptr, nl - ptr);
+			has_auth = true;
 		} else if (has_prefix (ptr, "Supported-ciphers: ", &ptr)) {
 			if (has_ciphers)
 				return nullptr;
@@ -169,6 +182,10 @@ const char * handshake::parse_init(const char * input)
 			if (secret)
 				return nullptr;
 			secret = strndup (ptr, nl - ptr);
+		} else if (has_prefix (ptr, "Secret-auth: ", &ptr)) {
+			if (secret_auth)
+				return nullptr;
+			secret_auth = strndup (ptr, nl - ptr);
 		} else {
 			return nullptr;
 		}
@@ -214,6 +231,12 @@ const char * handshake::parse_fini (const char *input)
 			if (nonce)
 				return nullptr;
 			nonce = strndup (ptr, nl - ptr);
+		} else if (has_prefix (ptr, "Secret-auth-reply: ", &ptr)) {
+			if (secret_auth_reply)
+				return nullptr;
+			secret_auth_reply = strndup (ptr, nl - ptr);
+		} else {
+			return nullptr;
 		}
 		ptr = nl + 1;
 	}
