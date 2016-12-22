@@ -1,5 +1,4 @@
 #include <pqc_kex_sidhex.hpp>
-#include <pqc_base64.hpp>
 #include <pqc_weierstrass.hpp>
 
 namespace pqc
@@ -14,14 +13,14 @@ kex_sidhex::kex_sidhex(mode mode_) :
 std::string kex_sidhex::init()
 {
 	key_.generate();
-	return base64_encode(key_.export_public());
+	return key_.export_public();
 }
 
 std::string kex_sidhex::fini(const std::string& received)
 {
 	sidh_key_basic peer_key(key_.get_params().other_side());
 
-	if (!peer_key.import_public(base64_decode(received)))
+	if (!peer_key.import_public(received))
 		return std::string();
 
 	return key_.compute_shared_secret(peer_key);
