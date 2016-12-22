@@ -2,8 +2,11 @@ CXXFLAGS = -fPIC -fno-exceptions -fno-stack-protector -march=native -std=c++14 -
 LDFLAGS = -lgmpxx -lgmp -lnettle
 
 LIBPQC_OBJS = 			\
+	pqc_auth.o		\
+	pqc_auth_sidhex.o	\
 	pqc_asymmetric_key.o	\
 	pqc_sidh_params.o	\
+	pqc_sidh_key_basic.o	\
 	pqc_sidh_key.o		\
 	pqc_packet.o		\
 	pqc_packet_reader.o	\

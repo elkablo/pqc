@@ -17,6 +17,8 @@ public:
 	sidh_params() = delete;
 	sidh_params(side);
 
+	sidh_params other_side() const;
+
 	side s;
 	const int &l, &e;
 	const Z &prime, &le, &lem1;

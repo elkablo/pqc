@@ -18,6 +18,11 @@ sidh_params::sidh_params(side s) :
 	initialize();
 }
 
+sidh_params sidh_params::other_side() const
+{
+	return sidh_params(s == side::A ? side::B : side::A);
+}
+
 int sidh_params::la, sidh_params::ea, sidh_params::lb, sidh_params::eb;
 Z sidh_params::p, sidh_params::lea, sidh_params::leam1, sidh_params::leb, sidh_params::lebm1;
 WeierstrassCurvePtr sidh_params::E;

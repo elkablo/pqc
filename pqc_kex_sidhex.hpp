@@ -15,7 +15,7 @@ public:
 	std::string init();
 	std::string fini(const std::string &);
 private:
-	sidh_key key_;
+	sidh_key_basic key_;
 };
 
 }

@@ -1,17 +1,17 @@
 #ifndef PQC_SIDH_KEY_HPP
 #define PQC_SIDH_KEY_HPP
 
-#include <string>
-#include <pqc_asymmetric_key.hpp>
-#include <pqc_sidh_params.hpp>
-#include <pqc_weierstrass.hpp>
+#include <cstddef>
+#include <pqc_sidh_key_basic.hpp>
 
 namespace pqc
 {
 
-class sidh_key : public asymmetric_key
+class sidh_key : public sidh_key_basic
 {
 public:
+	static const size_t hash_seed_size = 32;
+
 	sidh_key(const sidh_params&);
 	~sidh_key();
 
@@ -27,26 +27,11 @@ public:
 	bool generate_public();
 	void generate();
 
-	const sidh_params& get_params() const;
-
-	// private part
-	const Z& get_m() const;
-	const Z& get_n() const;
-	const WeierstrassIsogeny& get_isogeny();
-
-	// public part
-	const WeierstrassPoint& get_P_image() const;
-	const WeierstrassPoint& get_Q_image() const;
-	const WeierstrassCurvePtr& get_curve_image() const;
+	const std::string& get_hash_seed() const;
 private:
-	bool ensure_has_isogeny();
+	void generate_hash_seed();
 
-	bool has_isogeny_;
-	const sidh_params params_;
-	Z m_, n_;
-	WeierstrassIsogeny isogeny_;
-	WeierstrassCurvePtr curve_;
-	WeierstrassPoint P_image_, Q_image_;
+	std::string hash_seed_;
 };
 
 }

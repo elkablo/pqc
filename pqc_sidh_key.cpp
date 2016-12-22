@@ -5,12 +5,7 @@ namespace pqc
 {
 
 sidh_key::sidh_key(const sidh_params& params) :
-	asymmetric_key(),
-	has_isogeny_(false),
-	params_(params),
-	curve_(std::make_shared<WeierstrassCurve>(params.prime)),
-	P_image_(curve_),
-	Q_image_(curve_)
+	sidh_key_basic(params)
 {
 }
 
@@ -18,233 +13,108 @@ sidh_key::~sidh_key()
 {
 }
 
-bool sidh_key::generate_private()
+const std::string& sidh_key::get_hash_seed() const
 {
-	if (has_private_)
-		return true;
-	else if (has_public_)
-		return false;
-
-	if (random_u32_below(params_.l+1)) {
-		m_ = 1;
-		n_ = random_z_below(params_.le);
-	} else {
-		m_ = random_z_below(params_.lem1) * params_.l;
-		n_ = 1;
-	}
-
-	has_private_ = true;
-	has_public_ = false;
-	has_isogeny_ = false;
-
-	return true;
+	return hash_seed_;
 }
 
-bool sidh_key::ensure_has_isogeny()
+void sidh_key::generate_hash_seed()
 {
-	if (has_isogeny_)
+	hash_seed_.resize(hash_seed_size);
+	random_bytes(&hash_seed_[0], hash_seed_size);
+}
+
+bool sidh_key::generate_private()
+{
+	if (sidh_key_basic::generate_private()) {
+		generate_hash_seed();
 		return true;
-
-	if (!has_private_)
+	} else {
 		return false;
-
-	WeierstrassPoint generator = m_*params_.P + n_*params_.Q;
-	isogeny_ = WeierstrassIsogeny(generator, params_.l, params_.e);
-
-	has_isogeny_ = true;
-
-	return true;
+	}
 }
 
 bool sidh_key::generate_public()
 {
-	if (has_public_)
-		return true;
-
-	if (!ensure_has_isogeny())
-		return false;
-
-	curve_ = isogeny_.image();
-	P_image_ = isogeny_(params_.P_peer);
-	Q_image_ = isogeny_(params_.Q_peer);
-
-	has_public_ = true;
-
-	return true;
+	return sidh_key_basic::generate_public();
 }
 
 void sidh_key::generate()
 {
-	has_private_ = false;
-	has_public_ = false;
-	has_isogeny_ = false;
-
-	generate_private();
-	generate_public();
+	sidh_key_basic::generate();
+	generate_hash_seed();
 }
 
 std::string sidh_key::export_private() const
 {
-	if (!has_private_)
-		return std::string();
+	std::string basic(sidh_key_basic::export_private());
 
-	size_t size = params_.le.size();
-	if (m_ == 1)
-		return ((char) 0) + n_.serialize(size);
+	if (!basic.size())
+		return basic;
 	else
-		return ((char) 1) + m_.serialize(size);
+		return basic + hash_seed_;
 }
 
 std::string sidh_key::export_public() const
 {
-	if (!has_public_)
-		return std::string();
+	std::string basic(sidh_key_basic::export_public());
 
-	const WeierstrassCurvePtr& curve = has_isogeny_ ? isogeny_.image() : curve_;
-
-	return curve->serialize() + P_image_.serialize() + Q_image_.serialize();
+	if (!basic.size())
+		return basic;
+	else
+		return basic + hash_seed_;
 }
 
 std::string sidh_key::export_both() const
 {
-	if (!has_private_ || !has_public_)
-		return std::string();
+	std::string basic(sidh_key_basic::export_both());
 
-	return export_private() + export_public();
+	if (!basic.size())
+		return basic;
+	else
+		return basic + hash_seed_;
 }
 
 bool sidh_key::import_private(const std::string& input)
 {
-	Z m, n;
-
-	if (input.size() != params_.le.size() + 1)
+	if (input.size() <= hash_seed_size)
 		return false;
 
-	if (input[0] == ((char) 0)) {
-		m = 1;
-		n.unserialize(input.substr(1));
+	size_t basic_size = input.size() - hash_seed_size;
 
-		if (n >= params_.le)
-			return false;
-	} else if (input[0] == ((char) 1)) {
-		m.unserialize(input.substr(1));
-		n = 1;
-
-		if (m >= params_.le)
-			return false;
-	} else {
+	if (!sidh_key_basic::import_private(input.substr(0, basic_size)))
 		return false;
-	}
 
-	m_ = m;
-	n_ = n;
-
-	has_private_ = true;
-	has_public_ = false;
-	has_isogeny_ = false;
-
+	hash_seed_ = input.substr(basic_size);
 	return true;
 }
 
 bool sidh_key::import_public(const std::string& input)
 {
-	size_t curve_size = curve_->size();
-	size_t point_size = P_image_.size();
-
-	if (input.size() != curve_size + 2*point_size)
+	if (input.size() <= hash_seed_size)
 		return false;
 
-	WeierstrassCurvePtr curve = std::make_shared<WeierstrassCurve>(params_.prime);
+	size_t basic_size = input.size() - hash_seed_size;
 
-	if (!curve->unserialize(input.substr(0, curve_size)))
+	if (!sidh_key_basic::import_public(input.substr(0, basic_size)))
 		return false;
 
-	WeierstrassPoint P_image(curve);
-	WeierstrassPoint Q_image(curve);
-
-	if (!P_image.unserialize(input.substr(curve_size, point_size)))
-		return false;
-
-	if (!Q_image.unserialize(input.substr(curve_size + point_size, point_size)))
-		return false;
-
-	curve_ = curve;
-	P_image_ = P_image;
-	Q_image_ = Q_image;
-
-	has_private_ = false;
-	has_isogeny_ = false;
-	has_public_ = true;
-
+	hash_seed_ = input.substr(basic_size);
 	return true;
 }
 
 bool sidh_key::import(const std::string& input)
 {
-	size_t private_size = params_.le.size() + 1;
-	size_t public_size = curve_->size() + 2*P_image_.size();
-
-	if (input.size() == private_size) {
-		return import_private(input);
-	} else if (input.size() == public_size) {
-		return import_public(input);
-	} else if (input.size() == private_size + public_size) {
-		Z old_m = m_, old_n = n_;
-		bool old_has_private = has_private_, old_has_isogeny = has_isogeny_;
-
-		if (!import_private(input.substr(0, private_size))) {
-			return false;
-		} else if (!import_public(input.substr(private_size))) {
-			m_ = old_m;
-			n_ = old_n;
-			has_private_ = old_has_private;
-			has_isogeny_ = old_has_isogeny;
-			return false;
-		} else {
-			has_private_ = true;
-			has_public_ = true;
-			has_isogeny_ = false;
-			return true;
-		}
-	} else {
+	if (input.size() <= hash_seed_size)
 		return false;
-	}
-}
 
-const sidh_params& sidh_key::get_params() const
-{
-	return params_;
-}
+	size_t basic_size = input.size() - hash_seed_size;
 
-const Z& sidh_key::get_m() const
-{
-	return m_;
-}
+	if (!sidh_key_basic::import(input.substr(0, basic_size)))
+		return false;
 
-const Z& sidh_key::get_n() const
-{
-	return n_;
-}
-
-const WeierstrassIsogeny& sidh_key::get_isogeny()
-{
-	ensure_has_isogeny();
-	return isogeny_;
-}
-
-const WeierstrassPoint& sidh_key::get_P_image() const
-{
-	return P_image_;
-}
-
-const WeierstrassPoint& sidh_key::get_Q_image() const
-{
-	return Q_image_;
-}
-
-const WeierstrassCurvePtr& sidh_key::get_curve_image() const
-{
-	return curve_;
+	hash_seed_ = input.substr(basic_size);
+	return true;
 }
 
 }
