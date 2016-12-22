@@ -5,6 +5,7 @@ namespace pqc
 
 sidh_params::sidh_params(side s) :
 	s(s),
+	strategy(s_strategy),
 	l(s == side::A ? la : lb),
 	e(s == side::A ? ea : eb),
 	prime(p),
@@ -23,9 +24,10 @@ sidh_params sidh_params::other_side() const
 	return sidh_params(s == side::A ? side::B : side::A);
 }
 
+std::vector<int> sidh_params::s_strategy;
 int sidh_params::la, sidh_params::ea, sidh_params::lb, sidh_params::eb;
 Z sidh_params::p, sidh_params::lea, sidh_params::leam1, sidh_params::leb, sidh_params::lebm1;
-WeierstrassCurvePtr sidh_params::E;
+WeierstrassCurveConstPtr sidh_params::E;
 WeierstrassPoint sidh_params::Pa, sidh_params::Qa, sidh_params::Pb, sidh_params::Qb;
 
 void sidh_params::initialize()
@@ -35,6 +37,125 @@ void sidh_params::initialize()
 	if (initialized)
 		return;
 
+	s_strategy = {
+		0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
+		10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18,
+		18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 25, 26,
+		26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33, 33, 34,
+		34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 40, 41, 41, 42,
+		42, 43, 43, 44, 44, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 50,
+		50, 51, 51, 52, 52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58,
+		58, 59, 59, 60, 60, 61, 61, 62, 62, 63, 63, 64, 64, 65, 65, 66,
+		66, 67, 67, 68, 68, 69, 69, 70, 70, 71, 71, 72, 72, 73, 73, 74,
+		74, 75, 75, 76, 76, 77, 77, 78, 78, 79, 79, 80, 80, 81, 81, 82,
+		82, 83, 83, 84, 84, 85, 85, 86, 86, 87, 87, 88, 88, 89, 89, 90,
+		90, 91, 91, 92, 92, 93, 93, 94, 94, 95, 95, 96, 96, 97, 97, 98,
+		98, 99, 99, 100, 100, 101, 101, 102, 102, 103, 103, 104, 104,
+		105, 105, 106, 106, 107, 107, 108, 108, 109, 109, 110, 110,
+		111, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 116,
+		117, 117, 118, 118, 119, 119, 120, 120, 121, 121, 122, 122,
+		123, 123, 124, 124, 125, 125, 126, 126, 127, 127, 128, 128,
+		129, 129, 130, 130, 131, 131, 132, 132, 133, 133, 134, 134,
+		135, 135, 136, 136, 137, 137, 138, 138, 139, 139, 140, 140,
+		141, 141, 142, 142, 143, 143, 144, 144, 145, 145, 146, 146,
+		147, 147, 148, 148, 149, 149, 150, 150, 151, 151, 152, 152,
+		153, 153, 154, 154, 155, 155, 156, 156, 157, 157, 158, 158,
+		159, 159, 160, 160, 161, 161, 162, 162, 163, 163, 164, 164,
+		165, 165, 166, 166, 167, 167, 168, 168, 169, 169, 170, 170,
+		171, 171, 172, 172, 173, 173, 174, 174, 175, 175, 176, 176,
+		177, 177, 178, 178, 179, 179, 180, 180, 181, 181, 182, 182,
+		183, 183, 184, 184, 185, 185, 186
+	};
+
+	la = 2;
+	ea = 372;
+	lb = 3;
+	eb = 239;
+	lea = Z(la) << ea;
+	leam1 = Z(la) << (ea-1);
+	leb = Z("0x6fe5d541f71c0e12909f97badc668562b5045cb25748084e9867d6ebe876da959b1a13f7cc76e3ec968549f878a8eeb");
+	lebm1 = Z("0x254c9c6b525eaf5b858a87e8f4222c763c56c990c7c2ad6f88229cf94d7cf38733b35bfd4427a14edcd718a828384f9");
+
+	p = Z(
+		"0x6fe5d541f71c0e12909f97badc668562b5045cb25748084e9867d6ebe876da959b1a13f7cc76e3ec968549f878a8e"
+		"eafffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+	);
+
+	E = std::make_shared<const WeierstrassCurve>(GF(p, 1), GF(p, 0));
+
+	Pa = WeierstrassPoint(
+		E,
+		GF(
+			p,
+			"0x3993c7728f4c797e410a185cefeb171f6c8846a2554e8635343fc3349452c4c12e763cf3313948903ab1906ca1652"
+			"c8b534ef964543eb4659f1b700cae3cd68f14da3a7eeb3b13c20d34f87bd220f4bb8e068a981f41bc15ae619671638e",
+			"0x4eaddeb1067412b7f86cb0b068fc4a6f5cac65a8719f2927678296aff0b91089a74cdf132802891b6dbde01947391"
+			"c705c6bd6d4375bd890a7eaa4aa89a4d3ce64c3b88ea39319ecdb13278c82e326a92d751128981def2109c689ad4105"
+		),
+		GF(
+			p,
+			"0x6ac14df70bb76f43cac7d38101c616eb585daa97932b7c52dae2e03d993d566f7ad8cb04b1842fc123c485f58eb84"
+			"74fa82238380e06b0ab9fad8436fa1bab39ed1c570a1e38ba6554287a9cf6e2ad51517352824418f9a1c9c68c1aaa70",
+			"0x2b9f0a67464205bc839eb5b3409577965e26b62d31cdf6ef0f1952219c844477ab4468f0a1b4f4e6f65f8ef05a085"
+			"7fffaa6a222d922fc5809ca7a1a44e66e691ac838d78736a54a605f900d3d4dabd50c1afc4638a5295b1cb0418b8451"
+		)
+	);
+
+	Qa = WeierstrassPoint(
+		E,
+		GF(
+			p,
+			"0x148825eee1ed3dc31625a0ee337e2894d44a62daaf34e08fc55fc10ec73f7c675d071f3f78e42ddad6ce16fdddb44"
+			"bd95e65ee9ac15f91b80684df85f5ebb86978ed3d3afdccbb70c2ec707c0587ec4a8cda99c42c0c500a2773aad61bae",
+			"0x478c34c1cef76bd70246f8e44ab7e476799a68060f912db7502b804a314015ddcf7897ecb47fb7513cf8f6ab68c83"
+			"fd169485e629578f4b172c7530493dcd72d618960b8564e5e4e1f636eed37b307a387d6c16851900fbfb9fe77011251"
+		),
+		GF(
+			p,
+			"0x67037a9ad0aff5af68e0d10dc8948fcf9d98db2c65f8b8d7e8641d220b611fce98d4136dafe6d3a8190709e0ca406"
+			"3be486812e91ed9e8d04a1fefc00bc8ae6df8866fd8af6e607bdf596cac30da35e9d878059d3f6a64bc0a3c41813d1c",
+			"0x62b0d059de2a20d2e67665b707b944314cfe4c505c3e3c7e0565ed5345dfd46a8daf5adc9758401a6868546a6cb23"
+			"5aae92af5df513fd2fc12645629498f691c3535fe48e5997b4468ea3d784ec03f8b5db6225952ec1b192bfa1edccbef"
+		)
+	);
+
+	Pb = WeierstrassPoint(
+		E,
+		GF(
+			p,
+			"0x67c2dff47d15c2b0e18fbe12be459ae211211ed1b0a3822c5c2a31175f28134b8e8e24f6a8ce28c61ba94b7ec295b"
+			"d685550bbff9100d13134e93b6fa64a4c2f75fbe8e1ffe743353c386f4206e29d4f38a0b754c2a750c24953d26e0b4c",
+			"0x0fc9d1ae1d0dcf2080f5d5a4e0ec588733128d3eff6075a9d922857d5b93aabd16fe9fc0c4d05b42cea6f7fb1ca0a"
+			"d98801b87cc1e5d23ef1d93a172487e7c24dcc3e19f886a9ff11bd76d9ea9e35c21e12cd0f0aab437d169fcbf8d3118"
+		),
+		GF(
+			p,
+			"0x24c4122cade19382f63e5d450cda0786f881509bb72c8e4f73bd967e21020348d8e3450c5d931660052458dbb1b46"
+			"640d04f0e265d00405777da9b86e2ca6fc43d45e7a0ed34e3b880f0fb4ac2f4365ae3a4011db9e0f9ba24066dfcd068",
+			"0x2df723a5e213af476f31c84e0b71a1f0d02e4fd9abf673a378bb7b8f3416c0d68832ef9dd89472368eebd5cc1f7d1"
+			"0d7e797f71930bb3507f28e7c3fa180ef3a9772c35a6907b2fe8fb964543ed012962a6792f586f5d993a7af2632ae63"
+		)
+	);
+
+	Qb = WeierstrassPoint(
+		E,
+		GF(
+			p,
+			"0x3c40f67542385ece467e20dfaf55718694e0fd9cab8a688d5f18522e830abafb0e9b85043d89dc701001bf1b7faba"
+			"d080d3ff370430ffa83c4b070a85fc0f3d829cce715a7909f5782e289864d4fbd9406bec5fa6426dd85264070a69fbe",
+			"0x5eb69bc55ff951f1032cecb50d7ec0b90dc16193513527dda983fdf5c52bfed8488ecab164ec016fdea4e8f4a2007"
+			"38790de26e0de91193f20f2c5dfcd1ed71e32c3802eea124bf6338a204b8f1bb2c1c8e0f66b4d2ec351482475d3c096"
+		),
+		GF(
+			p,
+			"0x64c895027e64ec478cf7a673e3c3038417ca072e70802b296946b8270cea5a45153ec1167d6dda3ac9cc79ef9d8ed"
+			"2d52e9b0c773628673d0e6e5297a3220b74865cd748da5924bf9fba51855d5ee8303cf35ba5d9742b7becbcbd7982b8",
+			"0x0d7f0c294f0b91b827e8e59495cc6f038cba17f2854e5d972f631c9ef6b9bf875da84004c2ea0c627e21bec636049"
+			"49de49010cf0341d31022fa63bcd036c9f964954f250700e05c0a9e05d9e6c9242f99431a9807fa6dde93080f2d710f"
+		)
+	);
+
+/*
 	la = 2;
 	ea = 63;
 	lb = 3;
@@ -44,7 +165,7 @@ void sidh_params::initialize()
 	leb = Z("36472996377170786403"); // 3^41
 	lebm1 = Z("12157665459056928801"); // 3^40
 	p = Z("3700444163740528325594401040305817124863"); // la^ea * lb^eb * 11 - 1
-	E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
+	E = std::make_shared<const WeierstrassCurve>(GF(p, 1), GF(p, 0));
 	Pa = WeierstrassPoint(
 		E,
 		GF(p, "2524646701852396349308425328218203569693", "2374093068336250774107936421407893885897"),
@@ -57,6 +178,7 @@ void sidh_params::initialize()
 		GF(p, "1975912874247458572654720717155755005566", "3456956202852028835529419995475915388483")
 	);
 	Qb = Pb.psi();
+*/
 
 	initialized = true;
 }

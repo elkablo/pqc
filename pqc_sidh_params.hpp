@@ -1,6 +1,7 @@
 #ifndef PQC_SIDH_PARAMS_HPP
 #define PQC_SIDH_PARAMS_HPP
 
+#include <vector>
 #include <pqc_weierstrass.hpp>
 
 namespace pqc
@@ -20,6 +21,7 @@ public:
 	sidh_params other_side() const;
 
 	side s;
+	const std::vector<int>& strategy;
 	const int &l, &e;
 	const Z &prime, &le, &lem1;
 	const WeierstrassPoint &P, &Q, &P_peer, &Q_peer;
@@ -27,9 +29,10 @@ public:
 private:
 	static void initialize();
 
+	static std::vector<int> s_strategy;
 	static int la, ea, lb, eb;
 	static Z p, lea, leam1, leb, lebm1;
-	static WeierstrassCurvePtr E;
+	static WeierstrassCurveConstPtr E;
 	static WeierstrassPoint Pa, Qa, Pb, Qb;
 };
 
