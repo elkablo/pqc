@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include <pqc_random.hpp>
 #include <pqc_sidh_key_basic.hpp>
 
@@ -25,11 +27,11 @@ bool sidh_key_basic::generate_private()
 	else if (has_public_)
 		return false;
 
-	if (random_u32_below(params_.l+1)) {
+	if (random_u32_below(get_params().l+1)) {
 		m_ = 1;
-		n_ = random_z_below(params_.le);
+		n_ = random_z_below(get_params().le);
 	} else {
-		m_ = random_z_below(params_.lem1) * params_.l;
+		m_ = random_z_below(get_params().lem1) * get_params().l;
 		n_ = 1;
 	}
 
@@ -48,8 +50,8 @@ bool sidh_key_basic::ensure_has_isogeny()
 	if (!has_private_)
 		return false;
 
-	WeierstrassPoint generator = m_*params_.P + n_*params_.Q;
-	isogeny_ = WeierstrassIsogeny(generator, params_.l, params_.e);
+	WeierstrassPoint generator = m_*get_params().P + n_*get_params().Q;
+	isogeny_ = WeierstrassIsogeny(generator, get_params().l, get_params().e, get_params().strategy);
 
 	has_isogeny_ = true;
 
@@ -73,7 +75,7 @@ std::string sidh_key_basic::compute_shared_secret(const sidh_key_basic& public_k
 
 	WeierstrassPoint generator = m*P_image + n*Q_image;
 
-	return WeierstrassIsogeny(generator, l, e).image()->j_invariant().serialize();
+	return WeierstrassIsogeny(generator, l, e, get_params().strategy).image()->j_invariant().serialize();
 }
 
 bool sidh_key_basic::generate_public()
@@ -85,8 +87,8 @@ bool sidh_key_basic::generate_public()
 		return false;
 
 	curve_ = isogeny_.image();
-	P_image_ = isogeny_(params_.P_peer);
-	Q_image_ = isogeny_(params_.Q_peer);
+	P_image_ = isogeny_(get_params().P_peer);
+	Q_image_ = isogeny_(get_params().Q_peer);
 
 	has_public_ = true;
 
@@ -108,7 +110,7 @@ std::string sidh_key_basic::export_private() const
 	if (!has_private_)
 		return std::string();
 
-	size_t size = params_.le.size();
+	size_t size = get_params().le.size();
 	if (m_ == 1)
 		return ((char) 0) + n_.serialize(size);
 	else
@@ -137,20 +139,20 @@ bool sidh_key_basic::import_private(const std::string& input)
 {
 	Z m, n;
 
-	if (input.size() != params_.le.size() + 1)
+	if (input.size() != get_params().le.size() + 1)
 		return false;
 
 	if (input[0] == ((char) 0)) {
 		m = 1;
 		n.unserialize(input.substr(1));
 
-		if (n >= params_.le)
+		if (n >= get_params().le)
 			return false;
 	} else if (input[0] == ((char) 1)) {
 		m.unserialize(input.substr(1));
 		n = 1;
 
-		if (m >= params_.le)
+		if (m >= get_params().le)
 			return false;
 	} else {
 		return false;
@@ -174,7 +176,7 @@ bool sidh_key_basic::import_public(const std::string& input)
 	if (input.size() != curve_size + 2*point_size)
 		return false;
 
-	WeierstrassCurvePtr curve = std::make_shared<WeierstrassCurve>(params_.prime);
+	WeierstrassCurvePtr curve = std::make_shared<WeierstrassCurve>(get_params().prime);
 
 	if (!curve->unserialize(input.substr(0, curve_size)))
 		return false;
@@ -201,7 +203,7 @@ bool sidh_key_basic::import_public(const std::string& input)
 
 bool sidh_key_basic::import(const std::string& input)
 {
-	size_t private_size = params_.le.size() + 1;
+	size_t private_size = get_params().le.size() + 1;
 	size_t public_size = curve_->size() + 2*P_image_.size();
 
 	if (input.size() == private_size) {
