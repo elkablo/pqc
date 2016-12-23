@@ -188,7 +188,7 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 		if (slave != 0 && slave != 1 && slave != 2)
 			::close(slave);
 
-		const char * const argv[3] = {"/bin/bash", "-l", NULL};
+		const char * const argv[2] = {"/bin/sh", NULL};
 		const char * envp[2];
 
 		string termenv("TERM=");
@@ -197,7 +197,7 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 		envp[0] = termenv.c_str();
 		envp[1] = NULL;
 
-		::execve("/bin/bash", const_cast<char **>(argv), const_cast<char **>(envp));
+		::execve("/bin/sh", const_cast<char **>(argv), const_cast<char **>(envp));
 		std::exit(EXIT_FAILURE);
 	} else {
 		if (winp)
@@ -277,7 +277,7 @@ static void handle_client(int sock)
 			handle_session_input(sess, master);
 
 		if (pfds[1].revents) {
-			if (!handle_pty_input(sess, master)) {
+			if (!handle_pty_input(sess, master) || (pfds[1].revents & POLLHUP)) {
 				close(master);
 				master = -1;
 				break;
