@@ -167,10 +167,10 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 		cerr << "cannot fork: " << strerror(errno) << endl;
 		exit(EXIT_FAILURE);
 	} else if (pid == 0) {
-		char name[256];
+		const char *name;
 
-		if (::grantpt(master) < 0 || ::unlockpt(master) < 0 || ::ptsname_r(master, name, 256) < 0) {
-			cerr << "grantpt/unlockpt/ptsname_r error" << endl;
+		if (::grantpt(master) < 0 || ::unlockpt(master) < 0 || (name = ptsname(master)) != nullptr) {
+			cerr << "grantpt/unlockpt/ptsname error" << endl;
 			exit(EXIT_FAILURE);
 		}
 
