@@ -1,3 +1,7 @@
 *.o
-pqc
-weier
+*.so
+pqc-telnetd
+pqc-telnet
+pqc-keygen
+test_weierstrass
+
