@@ -24,37 +24,37 @@ using namespace pqc;
 
 static void set_fd_nonblocking(int fd)
 {
-	int flags = fcntl(fd, F_GETFL);
+	int flags = ::fcntl(fd, F_GETFL);
 
 	if (flags < 0) {
-		cerr << "cannot get file status flags: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+		cerr << "cannot get file status flags: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (flags & O_NONBLOCK)
 		return;
 
-	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-		cerr << "cannot set file status flags: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+		cerr << "cannot set file status flags: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 }
 
 static void set_fd_cloexec(int fd)
 {
-	int flags = fcntl(fd, F_GETFD);
+	int flags = ::fcntl(fd, F_GETFD);
 
 	if (flags < 0) {
-		cerr << "cannot get file descriptor flags: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+		cerr << "cannot get file descriptor flags: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (flags & FD_CLOEXEC)
 		return;
 
-	if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
-		cerr << "cannot set file descriptor flags: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0) {
+		cerr << "cannot set file descriptor flags: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 }
 
@@ -65,7 +65,7 @@ static string read_packet(pqc::socket_session& sess, size_t len)
 	ssize_t rd = sess.read(&result[0], len);
 	if (rd != len) {
 		cerr << "cannot read packet" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	return result;
@@ -77,7 +77,7 @@ static string read_varsized_packet(pqc::socket_session& sess)
 
 	if (sess.read(&length, sizeof(length)) != sizeof(length)) {
 		cerr << "cannot read length of variable sized packet" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	length = ntohs(length);
@@ -119,14 +119,14 @@ static void handle_session_input(pqc::socket_session& sess, int pty)
 
 			if (::write(pty, pkt.c_str(), pkt.size()) != pkt.size()) {
 				cerr << "cannot write to pty" << endl;
-				exit(EXIT_FAILURE);
+				std::exit(EXIT_FAILURE);
 			}
 		} else if (byte == 2) {
 			struct winsize ws = read_winsize_packet(sess);
 			::ioctl(pty, TIOCSWINSZ, &ws);
 		} else {
 			cerr << "wrong packet type from client" << endl;
-			exit(EXIT_FAILURE);
+			std::exit(EXIT_FAILURE);
 		}
 	} while (sess.bytes_available());
 
@@ -156,37 +156,37 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 {
 	int master = ::open("/dev/ptmx", O_RDWR|O_NOCTTY);
 	if (master < 0) {
-		cerr << "cannot open /dev/ptmx: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+		cerr << "cannot open /dev/ptmx: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
 	*amaster = master;
 
 	pid_t pid = fork();
 	if (pid < 0) {
-		cerr << "cannot fork: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+		cerr << "cannot fork: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	} else if (pid == 0) {
 		const char *name;
 
 		if (::grantpt(master) < 0 || ::unlockpt(master) < 0 || (name = ptsname(master)) != nullptr) {
 			cerr << "grantpt/unlockpt/ptsname error" << endl;
-			exit(EXIT_FAILURE);
+			std::exit(EXIT_FAILURE);
 		}
 
 		int slave = ::open(name, O_RDWR);
 		if (slave < 0) {
-			cerr << "cannot open " << name << ": " << strerror(errno) << endl;
-			exit(EXIT_FAILURE);
+			cerr << "cannot open " << name << ": " << ::strerror(errno) << endl;
+			std::exit(EXIT_FAILURE);
 		}
 
-		close(master);
-		setsid();
-		dup2(slave, 0);
-		dup2(slave, 1);
-		dup2(slave, 2);
+		::close(master);
+		::setsid();
+		::dup2(slave, 0);
+		::dup2(slave, 1);
+		::dup2(slave, 2);
 		if (slave != 0 && slave != 1 && slave != 2)
-			close(slave);
+			::close(slave);
 
 		const char * const argv[3] = {"/bin/bash", "-l", NULL};
 		const char * envp[2];
@@ -198,7 +198,7 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 		envp[1] = NULL;
 
 		::execve("/bin/bash", const_cast<char **>(argv), const_cast<char **>(envp));
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	} else {
 		if (winp)
 			::ioctl(master, TIOCSWINSZ, winp);
@@ -228,7 +228,7 @@ static void handle_client(int sock)
 
 	if (sess.is_error()) {
 		cerr << "handshake with client failed" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	sess.write("pqct", 4);
@@ -236,14 +236,14 @@ static void handle_client(int sock)
 	char magic[4];
 	if (sess.read(magic, 4) != 4 || memcmp(magic, "pqct", 4)) {
 		cerr << "wrong magic header from client" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	::setenv("TERM", read_varsized_packet(sess).c_str(), 1);
 
 	if (read_byte(sess) != 2) {
 		cerr << "expected winsize packet" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	struct winsize ws = read_winsize_packet(sess);
@@ -269,8 +269,8 @@ static void handle_client(int sock)
 		if (res < 0) {
 			if (errno == EINTR)
 				continue;
-			cerr << "cannot poll: " << strerror(errno) << endl;
-			exit(EXIT_FAILURE);
+			cerr << "cannot poll: " << ::strerror(errno) << endl;
+			std::exit(EXIT_FAILURE);
 		}
 
 		if (pfds[0].revents)
@@ -287,7 +287,7 @@ static void handle_client(int sock)
 
 	if (sess.is_error()) {
 		cerr << "pqc error" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (!sess.is_closed()) {
@@ -296,17 +296,17 @@ static void handle_client(int sock)
 		sess.close();
 	}
 
-	close(master);
+	::close(master);
 
-	exit(EXIT_SUCCESS);
+	std::exit(EXIT_SUCCESS);
 }
 
 static void set_reuse_addr(int sock)
 {
 	int val = 1;
-	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val))) {
-		cerr << "cannot reuse address: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val))) {
+		cerr << "cannot reuse address: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 }
 
@@ -314,7 +314,7 @@ static void signal_handler(int signum)
 {
 	if (signum == SIGCHLD) {
 		int status;
-		while (waitpid(-1, &status, WNOHANG) > 0)
+		while (::waitpid(-1, &status, WNOHANG) > 0)
 			;
 	}
 }
@@ -325,7 +325,7 @@ static void read_key(const char *path)
 
 	if (!priv_file) {
 		cerr << "cannot open " << path << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	priv_file.seekg(0, priv_file.end);
@@ -334,7 +334,7 @@ static void read_key(const char *path)
 
 	if (size <= 32) {
 		cerr << path << " does not contain a key" << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	priv_key_id.resize(32);
@@ -347,77 +347,77 @@ static void read_key(const char *path)
 	shared_ptr<auth> auth_ = auth::create(PQC_AUTH_SIDHex_SHA512);
 	if (!auth_->set_sign_key(priv_key)) {
 		cerr << path << " does not contain a valid SIDHex-SHA512 key" << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 }
 
 int main (int argc, char **argv) {
 	if (argc != 3) {
 		cerr << "usage: pqc-telnetd priv-key-file tcp-port" << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	read_key(argv[1]);
 
-	signal(SIGCHLD, signal_handler);
+	::signal(SIGCHLD, signal_handler);
 
 	int sock;
 	struct sockaddr_in addr;
 	char *end;
-	unsigned long int port = strtoul(argv[2], &end, 10);
+	unsigned long int port = std::strtoul(argv[2], &end, 10);
 
 	if (*end != '\0' || port < 1 || port > 65535) {
 		cerr << "wrong port number " << argv[2] << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons((uint16_t) port);
 
-	sock = socket(AF_INET, SOCK_STREAM, 0);
+	sock = ::socket(AF_INET, SOCK_STREAM, 0);
 	set_reuse_addr(sock);
 	set_fd_cloexec(sock);
 
-	if (bind(sock, (const struct sockaddr *) &addr, sizeof(addr)) < 0) {
-		cerr << "cannot bind to port " << port << ": " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::bind(sock, (const struct sockaddr *) &addr, sizeof(addr)) < 0) {
+		cerr << "cannot bind to port " << port << ": " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
-	if (listen(sock, 4) < 0) {
-		cerr << "cannot listen: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::listen(sock, 4) < 0) {
+		cerr << "cannot listen: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
 	while (true) {
 		struct sockaddr_in addr;
 		socklen_t addrlen = sizeof(addr);
 
-		int client = accept(sock, (struct sockaddr *) &addr, &addrlen);
+		int client = ::accept(sock, (struct sockaddr *) &addr, &addrlen);
 
 		if (client < 0) {
 			if (errno == EINTR)
 				continue;
-			cerr << "cannot accept client: " << strerror(errno) << "\n";
+			cerr << "cannot accept client: " << ::strerror(errno) << "\n";
 			continue;
 		}
 
 		set_fd_cloexec(sock);
 
 		char client_ip[32];
-		inet_ntop(AF_INET, &addr.sin_addr, client_ip, 32);
+		::inet_ntop(AF_INET, &addr.sin_addr, client_ip, 32);
 
-		pid_t pid = fork();
+		pid_t pid = ::fork();
 		if (pid == 0) {
 			handle_client(client);
-			exit(EXIT_SUCCESS);
+			std::exit(EXIT_SUCCESS);
 		} else if (pid > 0) {
 			cout << "accepted client " << client_ip << ":" << ntohs(addr.sin_port) << endl;
 		} else {
-			cerr << "cannot fork for client " << client_ip << ":" << ntohs(addr.sin_port) << ": " << strerror(errno) << endl;
+			cerr << "cannot fork for client " << client_ip << ":" << ntohs(addr.sin_port) << ": " << ::strerror(errno) << endl;
 		}
 
-		close(client);
+		::close(client);
 	}
 
 	return 0;

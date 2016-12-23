@@ -23,19 +23,19 @@ using namespace pqc;
 
 static void set_fd_nonblocking(int fd)
 {
-	int flags = fcntl(fd, F_GETFL);
+	int flags = ::fcntl(fd, F_GETFL);
 
 	if (flags < 0) {
-		cerr << "cannot get file descriptor flags: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+		cerr << "cannot get file descriptor flags: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
 	if (flags & O_NONBLOCK)
 		return;
 
-	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-		cerr << "cannot set file descriptor flags: " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+		cerr << "cannot set file descriptor flags: " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 }
 
@@ -49,12 +49,12 @@ static void handle_session_input(pqc::socket_session& sess)
 
 			if (rd < 0) {
 				cerr << "cannot read from session" << endl;
-				exit(EXIT_FAILURE);
+				std::exit(EXIT_FAILURE);
 			}
 
 			if (rd > 0 && ::write(STDOUT_FILENO, buffer, rd) != rd) {
 				cerr << "cannot write to standard output" << endl;
-				exit(EXIT_FAILURE);
+				std::exit(EXIT_FAILURE);
 			}
 		} while (sess.bytes_available() > 0);
 	}
@@ -77,7 +77,7 @@ static void set_terminal()
 	tcgetattr(STDIN_FILENO, &attr);
 	oldattr = attr;
 
-	atexit(reset_terminal);
+	std::atexit(reset_terminal);
 
 	attr.c_iflag = 0;
 	attr.c_lflag &= ~(ICANON|ECHO|ISIG);
@@ -95,7 +95,7 @@ static void handle_stdin_input(pqc::socket_session& sess)
 		rd = ::read(STDIN_FILENO, buffer + 3, 1024);
 		if (rd < 0) {
 			cerr << "cannot read from standard input" << endl;
-			exit(EXIT_FAILURE);
+			std::exit(EXIT_FAILURE);
 		} else if (rd > 0) {
 			*reinterpret_cast<uint16_t *>(&buffer[1]) = htons(rd);
 			sess.write(buffer, 3 + rd);
@@ -109,7 +109,7 @@ static void send_sigwinch_packet(pqc::socket_session& sess)
 
 	if (::ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) < 0) {
 		cerr << "cannot get window size" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	uint8_t buffer[17];
@@ -139,8 +139,8 @@ static int signal_pipe[2];
 static void signal_handler(int signum)
 {
 	int saved_errno = errno;
-	if (write(signal_pipe[1], &signum, sizeof(signum)) != sizeof(signum))
-		exit(EXIT_FAILURE);
+	if (::write(signal_pipe[1], &signum, sizeof(signum)) != sizeof(signum))
+		std::exit(EXIT_FAILURE);
 	errno = saved_errno;
 }
 
@@ -148,7 +148,7 @@ static void handle_signal_input(pqc::socket_session& sess)
 {
 	int signum;
 
-	if (read(signal_pipe[0], &signum, sizeof(signum)) != sizeof(signum))
+	if (::read(signal_pipe[0], &signum, sizeof(signum)) != sizeof(signum))
 		return;
 
 	if (signum == SIGINT || signum == SIGTERM)
@@ -161,13 +161,13 @@ string server_pub_key_id, server_pub_key;
 
 static void do_session(int sock)
 {
-	if (pipe(signal_pipe) < 0) {
+	if (::pipe(signal_pipe) < 0) {
 		cerr << "cannot create pipe" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
-	signal(SIGINT, signal_handler);
-	signal(SIGWINCH, signal_handler);
+	::signal(SIGINT, signal_handler);
+	::signal(SIGWINCH, signal_handler);
 
 	pqc::socket_session sess(sock);
 	sess.set_server_auth(server_pub_key_id, server_pub_key);
@@ -176,7 +176,7 @@ static void do_session(int sock)
 
 	if (sess.is_error()) {
 		cerr << "handshake with server failed" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	sess.write("pqct", 4);
@@ -184,7 +184,7 @@ static void do_session(int sock)
 	char magic[4];
 	if (sess.read(magic, 4) != 4 || memcmp(magic, "pqct", 4)) {
 		cerr << "wrong magic header from server" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	const char *term = ::getenv("TERM");
@@ -214,8 +214,8 @@ static void do_session(int sock)
 		if (res < 0) {
 			if (errno == EINTR)
 				continue;
-			cerr << "cannot poll: " << strerror(errno) << endl;
-			exit(EXIT_FAILURE);
+			cerr << "cannot poll: " << ::strerror(errno) << endl;
+			std::exit(EXIT_FAILURE);
 		}
 
 		if (pfds[0].revents)
@@ -228,10 +228,10 @@ static void do_session(int sock)
 
 	if (sess.is_error()) {
 		cerr << "pqc error" << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
-	exit(EXIT_SUCCESS);
+	std::exit(EXIT_SUCCESS);
 }
 
 static void read_key(const char *path)
@@ -240,7 +240,7 @@ static void read_key(const char *path)
 
 	if (!pub_file) {
 		cerr << "cannot open " << path << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	pub_file.seekg(0, pub_file.end);
@@ -249,7 +249,7 @@ static void read_key(const char *path)
 
 	if (size <= 32) {
 		cerr << path << " does not contain a key" << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	server_pub_key_id.resize(32);
@@ -262,14 +262,14 @@ static void read_key(const char *path)
 	shared_ptr<auth> auth_ = auth::create(PQC_AUTH_SIDHex_SHA512);
 	if (!auth_->set_request_key(server_pub_key)) {
 		cerr << path << " does not contain a valid SIDHex-SHA512 key" << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 }
 
 int main (int argc, char **argv) {
 	if (argc != 4) {
 		cerr << "usage: pqc-telnet pub-key-file ip-addr tcp-port" << endl << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	read_key(argv[1]);
@@ -277,28 +277,28 @@ int main (int argc, char **argv) {
 	int sock;
 	struct sockaddr_in addr;
 
-	if (inet_pton(AF_INET, argv[2], &addr.sin_addr) != 1) {
+	if (::inet_pton(AF_INET, argv[2], &addr.sin_addr) != 1) {
 		cerr << "wrong ip address " << argv[2] << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	char *end;
-	unsigned long int port = strtoul(argv[3], &end, 10);
+	unsigned long int port = std::strtoul(argv[3], &end, 10);
 
 	if (*end != '\0' || port < 1 || port > 65535) {
 		cerr << "wrong port number " << argv[3] << endl;
-		exit(EXIT_FAILURE);
+		std::exit(EXIT_FAILURE);
 	}
 
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons((uint16_t) port);
 
-	sock = socket(AF_INET, SOCK_STREAM, 0);
+	sock = ::socket(AF_INET, SOCK_STREAM, 0);
 
-	if (connect(sock, (const struct sockaddr *) &addr, sizeof(addr)) < 0) {
-		cerr << "cannot connect to " << argv[2] << ":" << port << ": " << strerror(errno) << endl;
-		exit(EXIT_FAILURE);
+	if (::connect(sock, (const struct sockaddr *) &addr, sizeof(addr)) < 0) {
+		cerr << "cannot connect to " << argv[2] << ":" << port << ": " << ::strerror(errno) << endl;
+		std::exit(EXIT_FAILURE);
 	}
 
 	do_session(sock);
