@@ -1,6 +1,8 @@
 CXXFLAGS = -fPIC -fno-exceptions -fno-stack-protector -march=native -std=c++14 -I.
 LDFLAGS = -lgmpxx -lgmp -lnettle
 
+CXX ?= g++
+
 LIBPQC_OBJS = 			\
 	pqc_sha.o		\
 	pqc_auth.o		\
@@ -41,13 +43,13 @@ debugize:
 	$(eval CXXFLAGS += -ggdb)
 
 libpqc.so: $(LIBPQC_OBJS)
-	g++ $(CXXFLAGS) $(LDFLAGS) -shared -o libpqc.so $(LIBPQC_OBJS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -o libpqc.so $(LIBPQC_OBJS)
 
 $(BINARIES): %:%.o libpqc.so
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L. -lpqc -Wl,-rpath,.
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L. -lpqc -Wl,-rpath,.
 
 %.o: %.cpp
-	g++ $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf $(LIBPQC_OBJS) libpqc.so $(BINARIES) $(addsuffix .o,$(BINARIES))
