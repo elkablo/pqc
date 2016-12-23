@@ -232,18 +232,17 @@ void test_weierstrass () {
 	// WeierstrassPoint Qa = Pa.psi(), Qb = Pb.psi();
 
 	// check order
-	if (false) {
+	if (true) {
 		check_order(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb);
 		check_order(generate_mn_alternative, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb);
-		return;
 	}
 
 	// measure time
 	if (true)
-		return measure_time(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy);
+		measure_time(generate_mn, Pa, Qa, Pb, Qb, lea, la, ea, leb, lb, eb, strategy);
 
 	if (true) {
-		int tries = 100, generate_mn_success = 0, generate_mn_alternative_success = 0;
+		int tries = 3, generate_mn_success = 0, generate_mn_alternative_success = 0;
 
 		std::cout << "Comparing j-invariants\n";
 
