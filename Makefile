@@ -38,10 +38,10 @@ all: optimize libpqc.so $(BINARIES)
 debug: debugize libpqc.so $(BINARIES)
 
 optimize:
-	$(eval CXXFLAGS += -O2)
+	$(eval override CXXFLAGS += -O2)
 
 debugize:
-	$(eval CXXFLAGS += -ggdb)
+	$(eval override CXXFLAGS += -ggdb)
 
 libpqc.so: $(LIBPQC_OBJS)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -shared -o libpqc.so $(LIBPQC_OBJS)
