@@ -119,7 +119,7 @@ void data_packet::set_data(const char *data, uint32_t size)
 	ptr()[0] = type::DATA;
 
 	// set size
-	*reinterpret_cast<uint32_t *>(ptr() + 1) = ::htonl(size);
+	*reinterpret_cast<uint32_t *>(ptr() + 1) = htonl(size);
 
 	// set data
 	memcpy(ptr() + header_size, data, size);
@@ -132,7 +132,7 @@ packet::type data_packet::get_type() const
 
 size_t data_packet::get_data_size() const
 {
-	return ::ntohl(*reinterpret_cast<const uint32_t *>(ptr() + 1));
+	return ntohl(*reinterpret_cast<const uint32_t *>(ptr() + 1));
 }
 
 const char *data_packet::get_data() const
