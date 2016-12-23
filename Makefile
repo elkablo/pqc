@@ -25,8 +25,14 @@ LIBPQC_OBJS = 			\
 	pqc_chacha.o		\
 	gf.o
 
-all: optimize libpqc.so pqc-telnet pqc-telnetd pqc-keygen weier
-debug: debugize libpqc.so pqc-telnet pqc-telnetd pqc-keygen weier
+BINARIES =			\
+	pqc-telnet		\
+	pqc-telnetd		\
+	pqc-keygen		\
+	test_weierstrass
+
+all: optimize libpqc.so $(BINARIES)
+debug: debugize libpqc.so $(BINARIES)
 
 optimize:
 	$(eval CXXFLAGS += -O2)
@@ -37,24 +43,11 @@ debugize:
 libpqc.so: $(LIBPQC_OBJS)
 	g++ $(CXXFLAGS) $(LDFLAGS) -shared -o libpqc.so $(LIBPQC_OBJS)
 
-pqc-telnet: pqc-telnet.o libpqc.so
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc-telnet.o -L. -lpqc -Wl,-rpath,.
-
-pqc-telnetd: pqc-telnetd.o libpqc.so
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc-telnetd.o -L. -lpqc -Wl,-rpath,.
-
-pqc-keygen: pqc-keygen.o libpqc.so
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc-keygen.o -L. -lpqc -Wl,-rpath,.
-
-weier: pqc_weierstrass_main.o libpqc.so
-	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ pqc_weierstrass_main.o -L. -lpqc -Wl,-rpath,.
-
-pqc_weierstrass_main.o: pqc_weierstrass.cpp
-	g++ -DWEIERSTRASS_MAIN $(CXXFLAGS) -c -o $@ $<
+$(BINARIES): %:%.o libpqc.so
+	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L. -lpqc -Wl,-rpath,.
 
 %.o: %.cpp
 	g++ $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -rf $(LIBPQC_OBJS) libpqc.so pqc-telnet pqc-telnet.o pqc-telnetd \
-		pqc-telnetd.o pqc-keygen pqc-keygen.o pqc_weierstrass_main.o weier
+	rm -rf $(LIBPQC_OBJS) libpqc.so $(BINARIES) $(addsuffix .o,$(BINARIES))
