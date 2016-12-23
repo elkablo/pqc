@@ -169,7 +169,7 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 	} else if (pid == 0) {
 		const char *name;
 
-		if (::grantpt(master) < 0 || ::unlockpt(master) < 0 || (name = ptsname(master)) != nullptr) {
+		if (::grantpt(master) < 0 || ::unlockpt(master) < 0 || (name = ptsname(master)) == nullptr) {
 			cerr << "grantpt/unlockpt/ptsname error" << endl;
 			std::exit(EXIT_FAILURE);
 		}
