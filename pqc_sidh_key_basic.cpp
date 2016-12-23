@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include <pqc_random.hpp>
 #include <pqc_sidh_key_basic.hpp>
 
@@ -207,16 +205,16 @@ bool sidh_key_basic::import(const std::string& input)
 	size_t public_size = curve_->size() + 2*P_image_.size();
 
 	if (input.size() == private_size) {
-		return import_private(input);
+		return sidh_key_basic::import_private(input);
 	} else if (input.size() == public_size) {
-		return import_public(input);
+		return sidh_key_basic::import_public(input);
 	} else if (input.size() == private_size + public_size) {
 		Z old_m = m_, old_n = n_;
 		bool old_has_private = has_private_, old_has_isogeny = has_isogeny_;
 
-		if (!import_private(input.substr(0, private_size))) {
+		if (!sidh_key_basic::import_private(input.substr(0, private_size))) {
 			return false;
-		} else if (!import_public(input.substr(private_size))) {
+		} else if (!sidh_key_basic::import_public(input.substr(private_size))) {
 			m_ = old_m;
 			n_ = old_n;
 			has_private_ = old_has_private;

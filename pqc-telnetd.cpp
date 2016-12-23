@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -14,6 +15,8 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <signal.h>
+#include <pqc_sha.hpp>
+#include <pqc_auth.hpp>
 #include <pqc_socket_session.hpp>
 
 using namespace std;
@@ -204,9 +207,22 @@ static pid_t forkpty(int *amaster, const struct winsize *winp)
 	return pid;
 }
 
+string priv_key_id, priv_key;
+
+string auth_cb(const string& id)
+{
+	if (id == priv_key_id) {
+		return priv_key;
+	} else {
+		cerr << "request for unavailable auth key ID " << id << endl;
+		return string();
+	}
+}
+
 static void handle_client(int sock)
 {
 	pqc::socket_session sess(sock);
+	sess.set_auth_callback(auth_cb);
 	sess.start_server();
 	sess.handshake();
 
@@ -303,21 +319,55 @@ static void signal_handler(int signum)
 	}
 }
 
-int main (int argc, char **argv) {
-	if (argc != 2) {
-		cerr << "usage: pqc-telnetd TCP_PORT" << endl << endl;
+static void read_key(const char *path)
+{
+	ifstream priv_file(path, ios_base::in | ios_base::binary);
+
+	if (!priv_file) {
+		cerr << "cannot open " << path << endl << endl;
 		exit(EXIT_FAILURE);
 	}
+
+	priv_file.seekg(0, priv_file.end);
+	size_t size = priv_file.tellg();
+	priv_file.seekg(0, priv_file.beg);
+
+	if (size <= 32) {
+		cerr << path << " does not contain a key" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	priv_key_id.resize(32);
+	priv_file.read(&priv_key_id[0], 32);
+	priv_key_id = bin2hex(priv_key_id);
+
+	priv_key.resize(size - 32);
+	priv_file.read(&priv_key[0], size - 32);
+
+	shared_ptr<auth> auth_ = auth::create(PQC_AUTH_SIDHex_SHA512);
+	if (!auth_->set_sign_key(priv_key)) {
+		cerr << path << " does not contain a valid SIDHex-SHA512 key" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+}
+
+int main (int argc, char **argv) {
+	if (argc != 3) {
+		cerr << "usage: pqc-telnetd priv-key-file tcp-port" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	read_key(argv[1]);
 
 	signal(SIGCHLD, signal_handler);
 
 	int sock;
 	struct sockaddr_in addr;
 	char *end;
-	unsigned long int port = strtoul(argv[1], &end, 10);
+	unsigned long int port = strtoul(argv[2], &end, 10);
 
 	if (*end != '\0' || port < 1 || port > 65535) {
-		cerr << "wrong port number " << argv[1] << endl;
+		cerr << "wrong port number " << argv[2] << endl;
 		exit(EXIT_FAILURE);
 	}
 

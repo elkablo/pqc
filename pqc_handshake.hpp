@@ -18,11 +18,11 @@ struct handshake {
 	char **client_auths;
 	size_t client_auths_len;
 
-	char *secret, *secret_auth;
+	char *secret, *auth_request;
 
 	enum pqc_cipher cipher;
 	enum pqc_mac mac;
-	char *nonce, *secret_auth_reply;
+	char *nonce, *auth_reply;
 
 	handshake();
 	~handshake();

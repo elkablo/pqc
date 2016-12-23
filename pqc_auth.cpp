@@ -37,6 +37,11 @@ enum pqc_auth auth::from_string(const char *str, size_t size)
 	return PQC_AUTH_UNKNOWN;
 }
 
+enum pqc_auth auth::from_string(const char *str)
+{
+	return from_string(str, ::strlen(str));
+}
+
 const char *auth::to_string(enum pqc_auth auth)
 {
 	for (int i = 0; auth_table[i].name; ++i)

@@ -29,6 +29,7 @@ public:
 	virtual bool verify(const std::string&) = 0;
 
 	static std::shared_ptr<auth> create(enum pqc_auth);
+	static enum pqc_auth from_string(const char *);
 	static enum pqc_auth from_string(const char *, size_t);
 	static const char *to_string(enum pqc_auth);
 

@@ -1,6 +1,9 @@
+#include <iostream>
+
 #include <sstream>
 #include <pqc_session.hpp>
 #include <pqc_handshake.hpp>
+#include <pqc_auth.hpp>
 #include <pqc_cipher.hpp>
 #include <pqc_kex.hpp>
 #include <pqc_mac.hpp>
@@ -20,10 +23,11 @@ session::session() :
 	since_last_rekey_(0),
 	since_last_peer_rekey_(0),
 	enabled_ciphers_(cipher::enabled_default()),
-	enabled_auths_(),
+	enabled_auths_(auth::enabled_default()),
 	enabled_macs_(mac::enabled_default()),
 	enabled_kexes_(kex::enabled_default()),
-	use_kex_(kex::get_default())
+	use_kex_(kex::get_default()),
+	use_auth_(auth::get_default())
 {}
 
 session::~session()
@@ -74,16 +78,16 @@ const std::string& session::get_server_name() const {
 	return server_name_;
 }
 
-void session::set_server_auth(const char *auth)
+void session::set_server_auth(const std::string& id, const std::string& auth)
 {
+	server_auth_id_ = id;
 	server_auth_ = auth;
 }
 
-void session::set_auth(const char *auth)
+void session::set_auth(const std::string& auth)
 {
-	std::string tmp(auth);
-	auth_callback_ = [tmp](const char *){
-		return tmp.c_str();
+	auth_callback_ = [auth](const std::string&){
+		return auth;
 	};
 }
 
@@ -187,6 +191,30 @@ void session::handle_handshake(const char *buf, size_t size)
 			)
 				return set_error(error::BAD_HANDSHAKE);
 
+			std::string decoded_secret = base64_decode(handshake.secret);
+			std::string auth_key, auth_reply;
+
+			if (handshake.auth != PQC_AUTH_UNKNOWN) {
+				if (!handshake.auth_request || !is_auth_enabled(handshake.auth) || !auth_callback_)
+					return set_error(error::BAD_HANDSHAKE);
+				if (mode_ == mode::CLIENT && handshake.client_auths_len != 1)
+					return set_error(error::BAD_HANDSHAKE);
+				if (mode_ == mode::SERVER && !handshake.server_auth)
+					return set_error(error::BAD_HANDSHAKE);
+
+				std::string auth_key = auth_callback_(mode_ == mode::SERVER ? handshake.server_auth : handshake.client_auths[0]);
+				if (auth_key.size() == 0)
+					return set_error(error::WRONG_AUTH);
+
+				std::shared_ptr<auth> sign_auth = auth::create(handshake.auth);
+				if (!sign_auth->set_sign_key(auth_key))
+					return set_error(error::WRONG_AUTH);
+
+				auth_reply = sign_auth->sign(decoded_secret, base64_decode(handshake.auth_request));
+				if (auth_reply.size() == 0)
+					return set_error(error::WRONG_AUTH);
+			}
+
 			cipher_ = cipher::create(
 				available_ciphers.isset(cipher::get_default())
 					? cipher::get_default()
@@ -206,7 +234,7 @@ void session::handle_handshake(const char *buf, size_t size)
 				secret = kex_->init();
 			}
 
-			session_key_ = kex_->fini(handshake.secret);
+			session_key_ = kex_->fini(decoded_secret);
 			if (!session_key_.size())
 				return set_error(error::BAD_HANDSHAKE);
 
@@ -220,7 +248,7 @@ void session::handle_handshake(const char *buf, size_t size)
 			if (mode_ == mode::SERVER) {
 				send_handshake_init(secret);
 			}
-			send_handshake_fini(nonce);
+			send_handshake_fini(nonce, auth_reply);
 
 			state_ = state::HANDSHAKING;
 		} else if (state_ == state::HANDSHAKING) {
@@ -245,8 +273,12 @@ void session::handle_handshake(const char *buf, size_t size)
 				|| handshake.mac == PQC_MAC_UNKNOWN
 				|| !is_mac_enabled(handshake.mac)
 				|| !handshake.nonce
+				|| (auth_ && !handshake.auth_reply)
 			)
 				return set_error(error::BAD_HANDSHAKE);
+
+			if (auth_ && !auth_->verify(base64_decode(handshake.auth_reply)))
+				return set_error(error::WRONG_AUTH);
 
 			peer_mac_ = mac::create(handshake.mac);
 			peer_cipher_ = cipher::create(handshake.cipher);
@@ -442,24 +474,37 @@ void session::send_handshake_init(const std::string& secret)
 
 	stream << '\n';
 
-	if (server_auth_.size())
-		stream << "Server-auth: " << server_auth_ << '\n';
+	stream << "Secret: " << base64_encode(secret) << "\n";
+
+	if (server_auth_.size()) {
+		stream << "Auth-type: " << auth::to_string(use_auth_) << '\n';
+		stream << "Server-auth: " << server_auth_id_ << '\n';
+
+		auth_ = auth::create(use_auth_);
+		if (!auth_->set_request_key(server_auth_))
+			return set_error(error::WRONG_AUTH);
+		stream << "Auth-request: " << base64_encode(auth_->request(secret)) << '\n';
+	}
 
 	/* Client-auth !!! */
-	stream << "Secret: " << secret << "\n";
 
 	stream << "\n";
 
 	outgoing_ = stream.str();
 }
 
-void session::send_handshake_fini(const std::string& nonce)
+void session::send_handshake_fini(const std::string& nonce, const std::string& auth_reply)
 {
 	std::stringstream stream;
 	stream	<< "KEX: OK\n"
 		<< "Cipher: " << cipher::to_string(*cipher_) << '\n'
 		<< "MAC: " << mac::to_string(*mac_) << '\n'
-		<< "Nonce: " << base64_encode(nonce) << "\n\n";
+		<< "Nonce: " << base64_encode(nonce) << '\n';
+
+	if (auth_reply.size() != 0)
+		stream << "Auth-reply: " << base64_encode(auth_reply) << '\n';
+
+	stream << '\n';
 
 	outgoing_.append(stream.str());
 }

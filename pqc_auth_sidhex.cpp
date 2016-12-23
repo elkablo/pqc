@@ -1,5 +1,4 @@
 #include <nettle/memxor.h>
-#include <pqc_base64.hpp>
 #include <pqc_auth_sidhex.hpp>
 
 namespace pqc
@@ -7,8 +6,8 @@ namespace pqc
 
 auth_sidhex::auth_sidhex(const std::shared_ptr<mac>& mac) :
 	mac_(mac),
-	request_key_(sidh_params(sidh_params::side::A)),
-	sign_key_(sidh_params(sidh_params::side::A))
+	request_key_(sidh_params::side::A),
+	sign_key_(sidh_params::side::A)
 {
 }
 
@@ -71,7 +70,7 @@ std::string auth_sidhex::sign(const std::string& message, const std::string& req
 	if (!peer_key.import_public(request))
 		return std::string();
 
-	mac_->key(request_key_.get_hash_seed());
+	mac_->key(sign_key_.get_hash_seed());
 
 	mac_->init();
 	mac_->update(message);

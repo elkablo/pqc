@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -13,6 +14,8 @@
 #include <poll.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <pqc_auth.hpp>
+#include <pqc_sha.hpp>
 #include <pqc_socket_session.hpp>
 
 using namespace std;
@@ -154,6 +157,8 @@ static void handle_signal_input(pqc::socket_session& sess)
 		handle_sigwinch(sess);
 }
 
+string server_pub_key_id, server_pub_key;
+
 static void do_session(int sock)
 {
 	if (pipe(signal_pipe) < 0) {
@@ -165,6 +170,7 @@ static void do_session(int sock)
 	signal(SIGWINCH, signal_handler);
 
 	pqc::socket_session sess(sock);
+	sess.set_server_auth(server_pub_key_id, server_pub_key);
 	sess.start_client("pqctelnet.test");
 	sess.handshake();
 
@@ -228,25 +234,59 @@ static void do_session(int sock)
 	exit(EXIT_SUCCESS);
 }
 
-int main (int argc, char **argv) {
-	if (argc != 3) {
-		cerr << "usage: pqc-telnet IP_ADDR TCP_PORT" << endl << endl;
+static void read_key(const char *path)
+{
+	ifstream pub_file(path, ios_base::in | ios_base::binary);
+
+	if (!pub_file) {
+		cerr << "cannot open " << path << endl << endl;
 		exit(EXIT_FAILURE);
 	}
+
+	pub_file.seekg(0, pub_file.end);
+	size_t size = pub_file.tellg();
+	pub_file.seekg(0, pub_file.beg);
+
+	if (size <= 32) {
+		cerr << path << " does not contain a key" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	server_pub_key_id.resize(32);
+	pub_file.read(&server_pub_key_id[0], 32);
+	server_pub_key_id = bin2hex(server_pub_key_id);
+
+	server_pub_key.resize(size - 32);
+	pub_file.read(&server_pub_key[0], size - 32);
+
+	shared_ptr<auth> auth_ = auth::create(PQC_AUTH_SIDHex_SHA512);
+	if (!auth_->set_request_key(server_pub_key)) {
+		cerr << path << " does not contain a valid SIDHex-SHA512 key" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+}
+
+int main (int argc, char **argv) {
+	if (argc != 4) {
+		cerr << "usage: pqc-telnet pub-key-file ip-addr tcp-port" << endl << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	read_key(argv[1]);
 
 	int sock;
 	struct sockaddr_in addr;
 
-	if (inet_pton(AF_INET, argv[1], &addr.sin_addr) != 1) {
-		cerr << "wrong ip address " << argv[1] << endl;
+	if (inet_pton(AF_INET, argv[2], &addr.sin_addr) != 1) {
+		cerr << "wrong ip address " << argv[2] << endl;
 		exit(EXIT_FAILURE);
 	}
 
 	char *end;
-	unsigned long int port = strtoul(argv[2], &end, 10);
+	unsigned long int port = strtoul(argv[3], &end, 10);
 
 	if (*end != '\0' || port < 1 || port > 65535) {
-		cerr << "wrong port number " << argv[2] << endl;
+		cerr << "wrong port number " << argv[3] << endl;
 		exit(EXIT_FAILURE);
 	}
 
@@ -257,7 +297,7 @@ int main (int argc, char **argv) {
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (connect(sock, (const struct sockaddr *) &addr, sizeof(addr)) < 0) {
-		cerr << "cannot connect to " << argv[1] << ":" << port << ": " << strerror(errno) << endl;
+		cerr << "cannot connect to " << argv[2] << ":" << port << ": " << strerror(errno) << endl;
 		exit(EXIT_FAILURE);
 	}
 

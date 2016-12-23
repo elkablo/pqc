@@ -20,11 +20,11 @@ handshake::handshake() :
 	client_auths(nullptr),
 	client_auths_len(0),
 	secret(nullptr),
-	secret_auth(nullptr),
+	auth_request(nullptr),
 	cipher(PQC_CIPHER_UNKNOWN),
 	mac(PQC_MAC_UNKNOWN),
 	nonce(nullptr),
-	secret_auth_reply(nullptr)
+	auth_reply(nullptr)
 {}
 
 handshake::~handshake()
@@ -40,12 +40,12 @@ handshake::~handshake()
 	}
 	if (secret)
 		free (secret);
-	if (secret_auth)
-		free (secret_auth);
+	if (auth_request)
+		free (auth_request);
 	if (nonce)
 		free (nonce);
-	if (secret_auth_reply)
-		free (secret_auth_reply);
+	if (auth_reply)
+		free (auth_reply);
 }
 
 static bool has_prefix (const char *s, const char *p, const char ** n)
@@ -182,10 +182,10 @@ const char * handshake::parse_init(const char * input)
 			if (secret)
 				return nullptr;
 			secret = strndup (ptr, nl - ptr);
-		} else if (has_prefix (ptr, "Secret-auth: ", &ptr)) {
-			if (secret_auth)
+		} else if (has_prefix (ptr, "Auth-request: ", &ptr)) {
+			if (auth_request)
 				return nullptr;
-			secret_auth = strndup (ptr, nl - ptr);
+			auth_request = strndup (ptr, nl - ptr);
 		} else {
 			return nullptr;
 		}
@@ -231,10 +231,10 @@ const char * handshake::parse_fini (const char *input)
 			if (nonce)
 				return nullptr;
 			nonce = strndup (ptr, nl - ptr);
-		} else if (has_prefix (ptr, "Secret-auth-reply: ", &ptr)) {
-			if (secret_auth_reply)
+		} else if (has_prefix (ptr, "Auth-reply: ", &ptr)) {
+			if (auth_reply)
 				return nullptr;
-			secret_auth_reply = strndup (ptr, nl - ptr);
+			auth_reply = strndup (ptr, nl - ptr);
 		} else {
 			return nullptr;
 		}

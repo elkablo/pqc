@@ -13,6 +13,7 @@ namespace pqc
 class kex;
 class cipher;
 class mac;
+class auth;
 
 class session
 {
@@ -33,6 +34,7 @@ class session
 public:
 	enum class error {
 		NONE = 0,
+		WRONG_AUTH,
 		BAD_HANDSHAKE,
 		BAD_PACKET,
 		BAD_MAC,
@@ -41,7 +43,7 @@ public:
 		OTHER
 	};
 
-	typedef std::function<const char *(const char *)> auth_callback_t;
+	typedef std::function<std::string(const std::string&)> auth_callback_t;
 
 	session();
 	virtual ~session();
@@ -59,8 +61,8 @@ public:
 	enum pqc_kex get_kex() const;
 
 	const std::string& get_server_name() const;
-	void set_server_auth(const char *);
-	void set_auth(const char *);
+	void set_server_auth(const std::string&, const std::string&);
+	void set_auth(const std::string&);
 	void set_auth_callback(const auth_callback_t&);
 
 	void set_rekey_after(size_t);
@@ -93,7 +95,7 @@ private:
 	void do_rekey();
 	void write_packet(const char *, size_t);
 	void send_handshake_init(const std::string&);
-	void send_handshake_fini(const std::string&);
+	void send_handshake_fini(const std::string&, const std::string& = "");
 	void handle_handshake(const char *, size_t);
 	void handle_incoming_close();
 	void handle_incoming_data(const char *, size_t);
@@ -117,9 +119,9 @@ private:
 	std::string session_key_, ephemeral_key_, peer_ephemeral_key_;
 
 	std::string server_name_;
-	std::string server_auth_, auth_;
+	std::string server_auth_id_, server_auth_;
 	std::shared_ptr<kex> kex_;
-	//auth *auth_;
+	std::shared_ptr<auth> auth_;
 	std::shared_ptr<cipher> cipher_, peer_cipher_;
 	std::shared_ptr<mac> mac_, peer_mac_;
 	auth_callback_t auth_callback_;
@@ -128,6 +130,7 @@ private:
 	macset enabled_macs_;
 	kexset enabled_kexes_;
 	enum pqc_kex use_kex_;
+	enum pqc_auth use_auth_;
 };
 
 }
