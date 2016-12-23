@@ -1,5 +1,6 @@
-CXXFLAGS = -fPIC -fno-exceptions -fno-stack-protector -march=native -std=c++14 -I.
-LDFLAGS = -lgmpxx -lgmp -lnettle
+override CPPFLAGS += -I.
+override CXXFLAGS += -fPIC -fno-stack-protector -std=c++14
+override LDFLAGS += -lgmpxx -lgmp -lnettle
 
 CXX ?= g++
 
@@ -49,7 +50,7 @@ $(BINARIES): %:%.o libpqc.so
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $< -L. -lpqc -Wl,-rpath,.
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf $(LIBPQC_OBJS) libpqc.so $(BINARIES) $(addsuffix .o,$(BINARIES))
