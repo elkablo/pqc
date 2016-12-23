@@ -1,3 +1,5 @@
+#include <iostream>
+#include <cstdio>
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <gf.hpp>
@@ -6,6 +8,25 @@
 namespace pqc
 {
 
+static bool get_system_entropy(void *out, size_t size)
+{
+#if defined(__linux) && defined(SYS_getrandom)
+	int ret;
+	do {
+		ret = syscall(SYS_getrandom, out, size, 0);
+	} while (ret == -1 && errno == EINTR);
+
+	return ret == size;
+#else
+	FILE *fp = std::fopen("/dev/urandom", "rb");
+	if (!fp)
+		return false;
+	size_t ret = std::fread(out, size, 1, fp);
+	std::fclose(fp);
+	return ret == 1;
+#endif
+}
+
 void random_bytes(void *out, size_t size)
 {
 	static thread_local bool initialized = false;
@@ -13,7 +34,10 @@ void random_bytes(void *out, size_t size)
 
 	if (!initialized) {
 		unsigned char key[40];
-		syscall(SYS_getrandom, key, 40, 0);
+		if (!get_system_entropy(key, 40)) {
+			std::cerr << "Unable to read from system entropy" << std::endl;
+			std::abort();
+		}
 		chacha.set_key(key);
 		initialized = true;
 	}
