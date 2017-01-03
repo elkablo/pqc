@@ -4,6 +4,7 @@
 #include <functional>
 #include <pqc_random.hpp>
 #include <pqc_weierstrass.hpp>
+#include <pqc_sidh_params.hpp>
 
 using namespace pqc;
 
@@ -29,10 +30,10 @@ void measure(const std::string& str, int repeats, std::function<void()> f) {
 		f();
 	auto end = steady_clock::now();
 	auto ms = duration_cast<milliseconds>(end - start).count();
-	std::cout << str << " took " << ms << "ms (" << (ms/repeats) << " ms per iteration)\n";
+	std::cout << str << " took " << ms << " ms (" << (ms/repeats) << " ms per iteration)\n";
 }
 
-void generate_mn(Z& m, Z& n, Z& le, int l)
+void generate_mn(Z& m, Z& n, const Z& le, int l)
 {
 	if (random_u32_below(l+1)) {
 		m = 1;
@@ -43,14 +44,14 @@ void generate_mn(Z& m, Z& n, Z& le, int l)
 	}
 }
 
-void generate_mn_alternative(Z& m, Z& n, Z& le, int l)
+void generate_mn_alternative(Z& m, Z& n, const Z& le, int l)
 {
 	m = random_z_below(le/l)*l;
 	n = 1;
 }
 
 void measure_time(
-	std::function<void(Z&, Z&, Z&, int)> mn_generator,
+	std::function<void(Z&, Z&, const Z&, int)> mn_generator,
 	WeierstrassPoint& Pa,
 	WeierstrassPoint& Qa,
 	WeierstrassPoint& Pb,
@@ -94,7 +95,7 @@ void measure_time(
 }
 
 void check_order(
-	std::function<void(Z&, Z&, Z&, int)> mn_generator,
+	std::function<void(Z&, Z&, const Z&, int)> mn_generator,
 	WeierstrassPoint& Pa,
 	WeierstrassPoint& Qa,
 	WeierstrassPoint& Pb,
@@ -139,7 +140,7 @@ void check_order(
 }
 
 bool compare_j_invariants(
-	std::function<void(Z&, Z&, Z&, int)> mn_generator,
+	std::function<void(Z&, Z&, const Z&, int)> mn_generator,
 	WeierstrassPoint& Pa,
 	WeierstrassPoint& Qa,
 	WeierstrassPoint& Pb,
@@ -173,42 +174,10 @@ bool compare_j_invariants(
 }
 
 void test_weierstrass () {
-	std::vector<int> strategy{
-		0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
-		10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18,
-		18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 25, 26,
-		26, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33, 33, 34,
-		34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 40, 41, 41, 42,
-		42, 43, 43, 44, 44, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 50,
-		50, 51, 51, 52, 52, 53, 53, 54, 54, 55, 55, 56, 56, 57, 57, 58,
-		58, 59, 59, 60, 60, 61, 61, 62, 62, 63, 63, 64, 64, 65, 65, 66,
-		66, 67, 67, 68, 68, 69, 69, 70, 70, 71, 71, 72, 72, 73, 73, 74,
-		74, 75, 75, 76, 76, 77, 77, 78, 78, 79, 79, 80, 80, 81, 81, 82,
-		82, 83, 83, 84, 84, 85, 85, 86, 86, 87, 87, 88, 88, 89, 89, 90,
-		90, 91, 91, 92, 92, 93, 93, 94, 94, 95, 95, 96, 96, 97, 97, 98,
-		98, 99, 99, 100, 100, 101, 101, 102, 102, 103, 103, 104, 104,
-		105, 105, 106, 106, 107, 107, 108, 108, 109, 109, 110, 110,
-		111, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 116,
-		117, 117, 118, 118, 119, 119, 120, 120, 121, 121, 122, 122,
-		123, 123, 124, 124, 125, 125, 126, 126, 127, 127, 128, 128,
-		129, 129, 130, 130, 131, 131, 132, 132, 133, 133, 134, 134,
-		135, 135, 136, 136, 137, 137, 138, 138, 139, 139, 140, 140,
-		141, 141, 142, 142, 143, 143, 144, 144, 145, 145, 146, 146,
-		147, 147, 148, 148, 149, 149, 150, 150, 151, 151, 152, 152,
-		153, 153, 154, 154, 155, 155, 156, 156, 157, 157, 158, 158,
-		159, 159, 160, 160, 161, 161, 162, 162, 163, 163, 164, 164,
-		165, 165, 166, 166, 167, 167, 168, 168, 169, 169, 170, 170,
-		171, 171, 172, 172, 173, 173, 174, 174, 175, 175, 176, 176,
-		177, 177, 178, 178, 179, 179, 180, 180, 181, 181, 182, 182,
-		183, 183, 184, 184, 185, 185, 186};
+	sidh_params params(sidh_params::side::A);
+	std::vector<int> strategy = params.strategy;
 
-	// p = 2^372 * 3*239 - 1
-	Z p("10354717741769305252977768237866805321427389645549071170116189679054678940682478846502882896561066713624553211618840202385203911976522554393044160468771151816976706840078913334358399730952774926980235086850991501872665651576831");
-
-	// Pa = [3^239] (11, sqrt(11³ + 11))
-	// Qa = ψ(Pa)
-	// Pb = [2^372] (6, sqrt(6³ + 6))
-	// Qb = ψ(Pb)
+	const Z &p = params.prime;
 
 	WeierstrassCurvePtr E = std::make_shared<WeierstrassCurve>(GF(p, 1), GF(p, 0));
 
@@ -300,9 +269,139 @@ void test_serialization() {
 	std::cout << point << '\n';
 }
 
+#ifdef HAVE_MSR_SIDH
+#define _AMD64_
+#define __LINUX__
+#define _GENERIC_
+#include <SIDH.h>
+
+CRYPTO_STATUS random_bytes_for_msr(unsigned int n, unsigned char* o)
+{
+	random_bytes(o, n);
+	return CRYPTO_SUCCESS;
+}
+
+typedef CRYPTO_STATUS (*KeyGeneration_t)(unsigned char*, unsigned char*, PCurveIsogenyStruct);
+typedef CRYPTO_STATUS (*SecretAgreement_t)(unsigned char*, unsigned char*, unsigned char*, PCurveIsogenyStruct);
+
+void keygen_libpqc(const sidh_params& params, Z *om, Z *on, WeierstrassPoint *oiso_P_peer, WeierstrassPoint *oiso_Q_peer)
+{
+	Z m, n;
+	generate_mn(m, n, params.le, params.l);
+	WeierstrassPoint gen = m*params.P + n*params.Q;
+	WeierstrassIsogeny iso(gen, params.l, params.e, params.strategy);
+
+	WeierstrassPoint iso_P_peer = iso(params.P_peer);
+	WeierstrassPoint iso_Q_peer = iso(params.Q_peer);
+
+	if (om)
+		*om = m;
+	if (on)
+		*on = n;
+	if (oiso_P_peer)
+		*oiso_P_peer = iso_P_peer;
+	if (oiso_Q_peer)
+		*oiso_Q_peer = iso_Q_peer;
+}
+
+void keygen_sidhlib(KeyGeneration_t KeyGeneration_X, unsigned char *opriv, unsigned char *opub)
+{
+	size_t osize = (CurveIsogeny_SIDHp751.owordbits + 7)/8;
+	size_t psize = (CurveIsogeny_SIDHp751.pwordbits + 7)/8;
+	unsigned char priv[osize], pub[4*2*psize];
+	PCurveIsogenyStruct iso = SIDH_curve_allocate(&CurveIsogeny_SIDHp751);
+	SIDH_curve_initialize(iso, random_bytes_for_msr, &CurveIsogeny_SIDHp751);
+	KeyGeneration_X(priv, pub, iso);
+	if (opriv)
+		::memcpy(opriv, priv, osize);
+	if (opub)
+		::memcpy(opub, pub, 4*2*psize);
+}
+
+void final_libpqc(const sidh_params& params, const Z& m, const Z& n, const WeierstrassPoint& iso_P, const WeierstrassPoint& iso_Q)
+{
+	WeierstrassPoint gen = m*iso_P + n*iso_Q;
+	WeierstrassIsogeny iso(gen, params.l, params.e, params.strategy);
+	iso.image()->j_invariant();
+}
+
+void final_sidhlib(SecretAgreement_t SecretAgreement_X, unsigned char *priv, unsigned char *pub_peer)
+{
+	size_t psize = (CurveIsogeny_SIDHp751.pwordbits + 7)/8;
+	unsigned char shared[2*psize];
+	PCurveIsogenyStruct iso = SIDH_curve_allocate(&CurveIsogeny_SIDHp751);
+	SIDH_curve_initialize(iso, random_bytes_for_msr, &CurveIsogeny_SIDHp751);
+	SecretAgreement_X(priv, pub_peer, shared, iso);
+}
+
+void test_msr_sidh()
+{
+	sidh_params paramsA(sidh_params::side::A);
+	sidh_params paramsB(sidh_params::side::A);
+
+	int iters = 10;
+
+	measure("key generation A [libpqc]                 ", iters, [&paramsA]() {
+		keygen_libpqc(paramsA, nullptr, nullptr, nullptr, nullptr);
+	});
+
+	measure("key generation A [SIDH library]           ", iters, []() {
+		keygen_sidhlib(KeyGeneration_A, nullptr, nullptr);
+	});
+
+	std::cout << std::endl;
+
+	measure("key generation B [libpqc]                 ", iters, [&paramsB]() {
+		keygen_libpqc(paramsB, nullptr, nullptr, nullptr, nullptr);
+	});
+
+	measure("key generation B [SIDH library]           ", iters, []() {
+		keygen_sidhlib(KeyGeneration_B, nullptr, nullptr);
+	});
+
+	std::cout << std::endl;
+
+	size_t osize = (CurveIsogeny_SIDHp751.owordbits + 7)/8;
+	size_t psize = (CurveIsogeny_SIDHp751.pwordbits + 7)/8;
+	unsigned char privA[osize], privB[osize], pubA[4*2*psize], pubB[4*2*psize];
+
+	Z ma, na, mb, nb;
+	WeierstrassPoint iso_PA, iso_QA, iso_PB, iso_QB;
+	keygen_libpqc(paramsA, &ma, &na, &iso_PB, &iso_QB);
+	keygen_libpqc(paramsB, &mb, &nb, &iso_PA, &iso_QA);
+
+	keygen_sidhlib(KeyGeneration_A, privA, pubA);
+	keygen_sidhlib(KeyGeneration_B, privB, pubB);
+
+	measure("shared secret computation A [libpqc]      ", iters, [&paramsA, &ma, &na, &iso_PB, &iso_QB]() {
+		final_libpqc(paramsA, ma, na, iso_PB, iso_QB);
+	});
+
+	measure("shared secret computation A [SIDH library]", iters, [&privA, &pubB]() {
+		final_sidhlib(SecretAgreement_A, privA, pubB);
+	});
+
+	std::cout << std::endl;
+
+	measure("shared secret computation B [libpqc]      ", iters, [&paramsB, &mb, &nb, &iso_PA, &iso_QA]() {
+		final_libpqc(paramsB, mb, nb, iso_PA, iso_QA);
+	});
+
+	measure("shared secret computation B [SIDH library]", iters, [&privB, &pubA]() {
+		final_sidhlib(SecretAgreement_B, privB, pubA);
+	});
+
+	std::cout << std::endl;
+}
+#else /* !HAVE_MSR_SIDH */
+void test_msr_sidh()
+{}
+#endif /* !HAVE_MSR_SIDH */
+
 int main (int argc, char ** argv) {
 	test_squaring();
 	test_serialization();
 	test_weierstrass();
+	test_msr_sidh();
 	return 0;
 }
