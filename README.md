@@ -80,6 +80,6 @@ If the connection is successful, a command prompt should be shown.
 
 # Disclaimer
 
-This software is experimental and will probably change radically in the future.
-Furthermore, there is a known attack on one of the cryptographic schemes and
-the countermeasure to secure it is not yet implemented.
+This software is experimental. Furthermore, there is a known attack on one
+of the cryptographic schemes and the countermeasure to secure it is not yet
+implemented.
