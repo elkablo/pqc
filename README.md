@@ -63,7 +63,7 @@ to remote users who connect with the pqc-telnet program. To start the server on 
 8822 with the private key from the server.priv file, run the following command:
 
 ```sh
-# pqc-telnetd server.priv 8822
+$ pqc-telnetd server.priv 8822
 ```
 
 ## pqc-telnet
@@ -73,7 +73,7 @@ a machine running the pqc-telnetd on IP address 10.20.30.40 and TCP port 8822, a
 verify the server with the public key stored in the server.pub file, run:
 
 ```sh
-# pqc-telnet server.pub 10.20.30.40 8822
+$ pqc-telnet server.pub 10.20.30.40 8822
 ```
 
 If the connection is successful, a command prompt should be shown.
