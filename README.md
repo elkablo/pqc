@@ -77,3 +77,11 @@ $ pqc-telnet server.pub 10.20.30.40 8822
 ```
 
 If the connection is successful, a command prompt should be shown.
+
+# Disclaimer
+
+This software is experimental and will probably change radically in the future.
+Furthermore, there is a known attack on one of the cryptographic schemes and
+the countermeasure to secure it is not yet implemented.
+
+License: Dual MIT/LGPL.
