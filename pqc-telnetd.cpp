@@ -17,7 +17,7 @@
 #include <signal.h>
 #include <pqc_sha.hpp>
 #include <pqc_auth.hpp>
-#include <pqc_socket_session.hpp>
+#include <pqc-telnet-common.hpp>
 
 using namespace std;
 using namespace pqc;
@@ -58,7 +58,7 @@ static void set_fd_cloexec(int fd)
 	}
 }
 
-static string read_packet(pqc::socket_session& sess, size_t len)
+static string read_packet(socket_session& sess, size_t len)
 {
 	string result;
 	result.resize(len);
@@ -71,7 +71,7 @@ static string read_packet(pqc::socket_session& sess, size_t len)
 	return result;
 }
 
-static string read_varsized_packet(pqc::socket_session& sess)
+static string read_varsized_packet(socket_session& sess)
 {
 	uint16_t length;
 
@@ -84,7 +84,7 @@ static string read_varsized_packet(pqc::socket_session& sess)
 	return read_packet(sess, length);
 }
 
-static struct winsize read_winsize_packet(pqc::socket_session& sess)
+static struct winsize read_winsize_packet(socket_session& sess)
 {
 	string pkt = read_packet(sess, 16);
 	const uint32_t *ptr = reinterpret_cast<const uint32_t *>(&pkt[0]);
@@ -98,14 +98,14 @@ static struct winsize read_winsize_packet(pqc::socket_session& sess)
 	return result;
 }
 
-static uint8_t read_byte(pqc::socket_session& sess)
+static uint8_t read_byte(socket_session& sess)
 {
 	uint8_t res;
 	sess.read(&res, 1);
 	return res;
 }
 
-static void handle_session_input(pqc::socket_session& sess, int pty)
+static void handle_session_input(socket_session& sess, int pty)
 {
 	sess.receive(false);
 	if (sess.bytes_available() == 0)
@@ -134,7 +134,7 @@ static void handle_session_input(pqc::socket_session& sess, int pty)
 		sess.close();
 }
 
-static bool handle_pty_input(pqc::socket_session& sess, int pty, bool all = false)
+static bool handle_pty_input(socket_session& sess, int pty, bool all = false)
 {
 	char buffer[4096];
 	ssize_t rd;
@@ -221,7 +221,7 @@ string auth_cb(const string& id)
 
 static void handle_client(int sock)
 {
-	pqc::socket_session sess(sock);
+	socket_session sess(sock);
 	sess.set_auth_callback(auth_cb);
 	sess.start_server();
 	sess.handshake();

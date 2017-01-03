@@ -1,3 +1,6 @@
+#ifndef PQC_TELNET_COMMON_HPP
+#define PQC_TELNET_COMMON_HPP
+
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -8,9 +11,7 @@
 #include <sys/ioctl.h>
 #include <pqc_session.hpp>
 
-namespace pqc {
-
-class socket_session : public session
+class socket_session : public pqc::session
 {
 public:
 	socket_session() = delete;
@@ -180,4 +181,4 @@ private:
 	bool closed_, peer_closed_;
 };
 
-}
+#endif /* PQC_TELNET_COMMON_HPP */

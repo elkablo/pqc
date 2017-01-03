@@ -16,7 +16,7 @@
 #include <termios.h>
 #include <pqc_auth.hpp>
 #include <pqc_sha.hpp>
-#include <pqc_socket_session.hpp>
+#include <pqc-telnet-common.hpp>
 
 using namespace std;
 using namespace pqc;
@@ -39,7 +39,7 @@ static void set_fd_nonblocking(int fd)
 	}
 }
 
-static void handle_session_input(pqc::socket_session& sess)
+static void handle_session_input(socket_session& sess)
 {
 	sess.receive(false);
 	if (sess.bytes_available() > 0) {
@@ -84,7 +84,7 @@ static void set_terminal()
 	tcsetattr(STDIN_FILENO, TCSANOW, &attr);
 }
 
-static void handle_stdin_input(pqc::socket_session& sess)
+static void handle_stdin_input(socket_session& sess)
 {
 	uint8_t buffer[1027];
 	ssize_t rd;
@@ -103,7 +103,7 @@ static void handle_stdin_input(pqc::socket_session& sess)
 	} while (rd == 1024 && !sess.is_error());
 }
 
-static void send_sigwinch_packet(pqc::socket_session& sess)
+static void send_sigwinch_packet(socket_session& sess)
 {
 	struct winsize ws;
 
@@ -124,12 +124,12 @@ static void send_sigwinch_packet(pqc::socket_session& sess)
 	sess.write(buffer, 17);
 }
 
-static void handle_sigwinch(pqc::socket_session& sess)
+static void handle_sigwinch(socket_session& sess)
 {
 	send_sigwinch_packet(sess);
 }
 
-static void handle_term(pqc::socket_session& sess)
+static void handle_term(socket_session& sess)
 {
 	sess.close();
 }
@@ -144,7 +144,7 @@ static void signal_handler(int signum)
 	errno = saved_errno;
 }
 
-static void handle_signal_input(pqc::socket_session& sess)
+static void handle_signal_input(socket_session& sess)
 {
 	int signum;
 
@@ -169,7 +169,7 @@ static void do_session(int sock)
 	::signal(SIGINT, signal_handler);
 	::signal(SIGWINCH, signal_handler);
 
-	pqc::socket_session sess(sock);
+	socket_session sess(sock);
 	sess.set_server_auth(server_pub_key_id, server_pub_key);
 	sess.start_client("pqctelnet.test");
 	sess.handshake();

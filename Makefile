@@ -57,7 +57,6 @@ HEADERS =			\
 	pqc_sidh_key_basic.hpp	\
 	pqc_sidh_key.hpp	\
 	pqc_sidh_params.hpp	\
-	pqc_socket_session.hpp	\
 	pqc_weierstrass.hpp
 
 BINARIES =			\
