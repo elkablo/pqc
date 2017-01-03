@@ -1,6 +1,6 @@
 #include <iostream>
 #include <cstdio>
-#include <gf.hpp>
+#include <pqc_gf.hpp>
 #include <pqc_chacha.hpp>
 
 namespace pqc

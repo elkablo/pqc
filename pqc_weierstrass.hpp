@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 #include <utility>
-#include <gf.hpp>
+#include <pqc_gf.hpp>
 
 namespace pqc {
 

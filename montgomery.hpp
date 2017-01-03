@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include <gf.hpp>
+#include <pqc_gf.hpp>
 
 namespace pqc {
 
