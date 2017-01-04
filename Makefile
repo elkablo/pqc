@@ -63,7 +63,7 @@ BINARIES =			\
 	pqc-telnet		\
 	pqc-telnetd		\
 	pqc-keygen		\
-	test_weierstrass
+	pqc-tests
 
 all: optimize libpqc.so $(BINARIES)
 debug: debugize libpqc.so $(BINARIES)

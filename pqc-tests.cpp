@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iostream>
 #include <chrono>
 #include <vector>
@@ -272,7 +273,6 @@ void test_serialization() {
 #ifdef HAVE_MSR_SIDH
 #define _AMD64_
 #define __LINUX__
-#define _GENERIC_
 #include <SIDH.h>
 
 CRYPTO_STATUS random_bytes_for_msr(unsigned int n, unsigned char* o)
@@ -393,15 +393,44 @@ void test_msr_sidh()
 
 	std::cout << std::endl;
 }
-#else /* !HAVE_MSR_SIDH */
-void test_msr_sidh()
-{}
-#endif /* !HAVE_MSR_SIDH */
+#endif /* HAVE_MSR_SIDH */
 
 int main (int argc, char ** argv) {
-	test_squaring();
-	test_serialization();
-	test_weierstrass();
-	test_msr_sidh();
+	bool squaring = false, serialization = false, weierstrass = false;
+#ifdef HAVE_MSR_SIDH 
+	bool msr_sidh = false;
+#endif /* HAVE_MSR_SIDH */
+
+	for (int i = 1; i < argc; ++i) {
+		if (!strcasecmp(argv[i], "squaring"))
+			squaring = true;
+		else if (!strcasecmp(argv[i], "serialization"))
+			serialization = true;
+		else if (!strcasecmp(argv[i], "weierstrass"))
+			weierstrass = true;
+#ifdef HAVE_MSR_SIDH
+		else if (!strcasecmp(argv[i], "msr_sidh"))
+			msr_sidh = true;
+#endif /* HAVE_MSR_SIDH */
+		else {
+			std::cerr << "usage: pqc-tests [squaring|serialization|weierstrass";
+#ifdef HAVE_MSR_SIDH
+			std::cerr << "|msr_sidh";
+#endif /* HAVE_MSR_SIDH */
+			std::cerr << "]" << std::endl << std::endl;
+			return 1;
+		}
+	}
+
+	if (squaring)
+		test_squaring();
+	if (serialization)
+		test_serialization();
+	if (weierstrass)
+		test_weierstrass();
+#ifdef HAVE_MSR_SIDH
+	if (msr_sidh)
+		test_msr_sidh();
+#endif /* HAVE_MSR_SIDH */
 	return 0;
 }
