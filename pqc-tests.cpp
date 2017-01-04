@@ -399,7 +399,7 @@ int usage()
 {
 	std::cerr << "usage: pqc-tests [squaring|serialization|weierstrass";
 #ifdef HAVE_MSR_SIDH
-	std::cerr << "|msr_sidh";
+	std::cerr << "|msr-sidh";
 #endif /* HAVE_MSR_SIDH */
 	std::cerr << "]" << std::endl << std::endl;
 	return 1;
@@ -416,7 +416,7 @@ int main (int argc, char ** argv) {
 		else if (!strcasecmp(argv[i], "weierstrass"))
 			weierstrass = true;
 #ifdef HAVE_MSR_SIDH
-		else if (!strcasecmp(argv[i], "msr_sidh"))
+		else if (!strcasecmp(argv[i], "msr-sidh"))
 			msr_sidh = true;
 #endif /* HAVE_MSR_SIDH */
 		else
