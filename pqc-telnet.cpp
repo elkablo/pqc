@@ -108,8 +108,10 @@ static void send_sigwinch_packet(socket_session& sess)
 	struct winsize ws;
 
 	if (::ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) < 0) {
-		cerr << "cannot get window size" << endl;
-		std::exit(EXIT_FAILURE);
+		ws.ws_row = 25;
+		ws.ws_col = 80;
+		ws.ws_xpixel = 16;
+		ws.ws_ypixel = 16;
 	}
 
 	uint8_t buffer[17];
