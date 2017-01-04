@@ -273,7 +273,7 @@ void test_serialization() {
 #ifdef HAVE_MSR_SIDH
 #define _AMD64_
 #define __LINUX__
-#include <SIDH.h>
+#include <msr-sidh/SIDH.h>
 
 CRYPTO_STATUS random_bytes_for_msr(unsigned int n, unsigned char* o)
 {
