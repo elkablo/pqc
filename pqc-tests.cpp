@@ -395,11 +395,18 @@ void test_msr_sidh()
 }
 #endif /* HAVE_MSR_SIDH */
 
-int main (int argc, char ** argv) {
-	bool squaring = false, serialization = false, weierstrass = false;
-#ifdef HAVE_MSR_SIDH 
-	bool msr_sidh = false;
+int usage()
+{
+	std::cerr << "usage: pqc-tests [squaring|serialization|weierstrass";
+#ifdef HAVE_MSR_SIDH
+	std::cerr << "|msr_sidh";
 #endif /* HAVE_MSR_SIDH */
+	std::cerr << "]" << std::endl << std::endl;
+	return 1;
+}
+
+int main (int argc, char ** argv) {
+	bool squaring = false, serialization = false, weierstrass = false, msr_sidh = false;
 
 	for (int i = 1; i < argc; ++i) {
 		if (!strcasecmp(argv[i], "squaring"))
@@ -412,15 +419,12 @@ int main (int argc, char ** argv) {
 		else if (!strcasecmp(argv[i], "msr_sidh"))
 			msr_sidh = true;
 #endif /* HAVE_MSR_SIDH */
-		else {
-			std::cerr << "usage: pqc-tests [squaring|serialization|weierstrass";
-#ifdef HAVE_MSR_SIDH
-			std::cerr << "|msr_sidh";
-#endif /* HAVE_MSR_SIDH */
-			std::cerr << "]" << std::endl << std::endl;
-			return 1;
-		}
+		else
+			return usage();
 	}
+
+	if (!squaring && !serialization && !weierstrass && !msr_sidh)
+		return usage();
 
 	if (squaring)
 		test_squaring();
