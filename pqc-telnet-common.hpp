@@ -88,10 +88,10 @@ public:
 			return;
 		}
 
-		char buffer[size];
+		char buffer[8192];
 		ssize_t rd;
 
-		rd = ::read(sock_, buffer, size);
+		rd = ::read(sock_, buffer, 8192);
 		if (rd > 0) {
 			write_incoming(buffer, rd);
 		} else if (rd == 0) {
