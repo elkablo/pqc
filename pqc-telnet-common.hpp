@@ -88,24 +88,19 @@ public:
 			return;
 		}
 
-		char buffer[1024];
+		char buffer[size];
 		ssize_t rd;
 
-		do {
-			rd = ::read(sock_, buffer, 1024);
-			if (rd > 0) {
-				write_incoming(buffer, rd);
-				size -= rd;
-			} else if (rd == 0) {
-				if (!is_peer_closed())
-					set_error(error::OTHER);
-				peer_closed_ = true;
-				break;
-			} else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-				set_errno();
-				break;
-			}
-		} while (size > 0);
+		rd = ::read(sock_, buffer, size);
+		if (rd > 0) {
+			write_incoming(buffer, rd);
+		} else if (rd == 0) {
+			if (!is_peer_closed())
+				set_error(error::OTHER);
+			peer_closed_ = true;
+		} else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			set_errno();
+		}
 	}
 
 	void transmit()
