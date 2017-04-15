@@ -17,10 +17,12 @@ AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 dist_noinst_SCRIPTS = autogen.sh
 
+pqc_includedir = \$(includedir)/pqc
+pqc_include_HEADERS = `echo include/*.hpp`
+
 lib_LTLIBRARIES = libpqc.la
 libpqc_ladir  = lib
 libpqc_la_SOURCES = `echo lib/*.cpp`
-libpqc_la_HEADERS = `echo include/*.hpp`
 libpqc_la_CPPFLAGS = ${COMMON_CPPFLAGS} -I\$(srcdir)/include/
 libpqc_la_CFLAGS = ${COMMON_CFLAGS}
 libpqc_la_CXXFLAGS = ${COMMON_CXXFLAGS}
