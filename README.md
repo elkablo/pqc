@@ -15,32 +15,18 @@ GNU Make is also required for compilation.
 
 # Installation
 
-## Linux
-
 This command sequence compiles the library and installs it into /usr/local
 
 ```sh
+$ ./autogen.sh    # only required when installing from git
+$ ./configure
 $ make
-$ make install
+$ make install-strip
 ```
 
-Alternatively, it can be compiled with additional compiler flags and installed 
-into another directory:
-
-```sh
-$ make CXXFLAGS="-march=native"
-$ make install PREFIX=/usr
-```
-
-## FreeBSD
-
-It is required to use the Clang compiler on FreeBSD. Also, if the Nettle library
-is installed in /usr/local, the compiler needs to be told.
-
-```sh
-$ gmake CXX=clang++ CPPFLAGS=-I/usr/local/include LDFLAGS=/usr/local/lib
-$ gmake install
-```
+Alternate compilers, compiler flags, prefixes, destination directories and/or
+cross-compilation options can be specified -- see the output of `./configure
+--help` for details.
 
 # Example Programs
 
